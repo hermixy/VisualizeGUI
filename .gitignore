@@ -1,4 +1,7 @@
 *.pyc
 dist
 MANIFEST
-
+*.spec
+*.pyc
+build/
+dist/
