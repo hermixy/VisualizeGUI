@@ -4,10 +4,9 @@
 import sys
 from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
-import random
+import zmq
 
 class Window(QtGui.QMainWindow):
-
     def __init__(self, parent=None):
         super(Window, self).__init__(parent)
         self.setGeometry(50, 50, 500, 300)
@@ -16,8 +15,8 @@ class Window(QtGui.QMainWindow):
 
         self.initLayout()
         self.initMenuBar()
+        self.initZMQPlotter()
         #self.initToolBar()
-
 
         # Show the widgets onto the GUI, must be at the end
         self.statusBar()
@@ -29,11 +28,6 @@ class Window(QtGui.QMainWindow):
     def initLayout(self):
         self.centralWidget = QtGui.QStackedWidget()
         self.setCentralWidget(self.centralWidget)
-
-        # Create ZMQ Plot Widget
-        self.ZMQStreamWidget = ZMQStreamWidget(self)
-        self.ZMQStreamWidget.saveButton.clicked.connect(self.ZMQPlotter)
-        self.centralWidget.addWidget(self.ZMQStreamWidget)
 
     def initMenuBar(self):
         self.menuBar = self.menuBar()
@@ -49,6 +43,19 @@ class Window(QtGui.QMainWindow):
         self.toolBar = self.addToolBar('Exit')
         self.toolBar.addAction(self.exitAction)
 
+    def initZMQPlotter(self):
+        # Create ZMQ Plot Widget
+        self.ZMQStreamWidget = ZMQStreamWidget(self)
+        self.ZMQStreamWidget.saveButton.clicked.connect(self.ZMQPlotter)
+        self.centralWidget.addWidget(self.ZMQStreamWidget)
+
+        # Setup socket port and topic using pub/sub system
+        self.ZMQ_TCP_Port = "tcp://192.168.30.30:6002"
+        self.ZMQ_Topic = "10001"
+        self.ZMQContext = zmq.Context()
+        self.ZMQSocket = self.ZMQContext.socket(zmq.SUB)
+        self.ZMQSocket.connect(self.ZMQ_TCP_Port)
+        self.ZMQSocket.setsockopt(zmq.SUBSCRIBE, self.ZMQ_Topic)
 
     # ------------------------------------------------------------------------
     # Menu Option functions
@@ -58,7 +65,7 @@ class Window(QtGui.QMainWindow):
     # GUI Function Elements
     # ------------------------------------------------------------------------
     def ZMQPlotter(self):
-        self.ZMQData =[0]
+        self.ZMQData = [0]
         self.curve = self.ZMQStreamWidget.plot.getPlotItem().plot()
 
         self.timer = QtCore.QTimer()
@@ -66,9 +73,11 @@ class Window(QtGui.QMainWindow):
         self.timer.start(0)
 
     def ZMQPlotUpdater(self):
-        self.ZMQData.append(self.ZMQData[-1]+0.2*(0.5-random.random()) )
-        #num = input('number')
-        #self.ZMQData.append(int(num))
+        # Receives (topic, data)
+        topic, self.ZMQDataPoint = self.ZMQSocket.recv().split()
+        print(self.ZMQDataPoint)
+        
+        self.ZMQData.append(int(self.ZMQDataPoint))
         self.curve.setData(self.ZMQData)
 
 class ZMQStreamWidget(QtGui.QWidget):
