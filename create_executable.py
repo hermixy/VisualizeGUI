@@ -1,7 +1,9 @@
 #!c:\python27\python.exe
 # EASY-INSTALL-ENTRY-SCRIPT: 'PyInstaller==3.4','console_scripts','pyinstaller'
-
-# Usage: python create_executable.py
+# Generates python script into .exe file
+# Built .exe file can be found in the dist/ folder
+#
+# Note: Use use clean.py before usage to ensure prior executables are removed
 # Usage: python create_executable.py -f <file.py>
 # Manual: python pyinstaller-script.py --onefile --windowed <file.py>
 
@@ -13,13 +15,7 @@ import sys
 from pkg_resources import load_entry_point
 
 ap = argparse.ArgumentParser()
-ap.add_argument("-f", "--file", required=False, help="File name to convert into executable")
+ap.add_argument("-f", "--file", required=True, help="File name to convert into executable")
 args = vars(ap.parse_args())
-if not args['file']:
-    filename = 'spectrumGUI.py'
-else:
-    filename = args['file']
-
-system('python pyinstaller-script.py --onefile --windowed ' + filename)
-
+system('python pyinstaller-script.py --onefile --windowed ' + args['file'])
 
