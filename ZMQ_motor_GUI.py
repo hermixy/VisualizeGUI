@@ -9,6 +9,7 @@ def positionUpdate():
     global currentPositionValue
     topic, currentPositionValue = socket2.recv().split()
     currentPosition.setText(currentPositionValue)
+
 def moveButtonPressed():
     socket.send("move 1 2 3")
     result = socket.recv()
@@ -19,11 +20,8 @@ def homeButtonPressed():
     result = socket.recv()
     print("Home response is " + result)
 
-def styleChoice():
-    app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
-
 def addPresetSettings():
-    name = str(preset_name.text())
+    name = str(presetName.text())
     p = str(position.text())
     v = str(velocity.text())
     a = str(acceleration.text())
@@ -31,9 +29,9 @@ def addPresetSettings():
         return
     if not p or not v or not a:
         return
-    if name not in preset_table:
+    if name not in presetTable:
         presets.addItem(name)
-    preset_table[name] = {
+    presetTable[name] = {
             "position": p,
             "velocity": v,
             "acceleration": a 
@@ -41,22 +39,18 @@ def addPresetSettings():
     index = presets.findText(name)
     if index >= 0:
         presets.setCurrentIndex(index)
-    
-    print("key " + name)
-    print(preset_table[name])
 
-
+# Update fields with choosen preset setting
 def updatePresetSettings():
     name = str(presets.currentText()) 
+    position.setText(presetTable[name]["position"])
+    velocity.setText(presetTable[name]["velocity"])
+    acceleration.setText(presetTable[name]["acceleration"])
 
-    position.setText(preset_table[name]["position"])
-    velocity.setText(preset_table[name]["velocity"])
-    acceleration.setText(preset_table[name]["acceleration"])
 def closeProgram():
     exit(1)
     
-
-preset_table = {}
+presetTable = {}
 
 context = zmq.Context()
 socket = context.socket(zmq.REQ)
@@ -75,14 +69,45 @@ print(info)
 velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units = info
 
 app = QtGui.QApplication([])
+app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
 mw.setWindowTitle('ZMQ Motor GUI')
+
+# Menubar
+mb = mw.menuBar()
+fm = mb.addMenu('&File')
+
+exitAction = QtGui.QAction('Exit', mw)
+exitAction.setShortcut('Ctrl+Q')
+exitAction.setStatusTip('Exit application')
+exitAction.triggered.connect(QtGui.qApp.quit)
+fm.addAction(exitAction)
+
+moveAction = QtGui.QAction('Move', mw)
+moveAction.setShortcut('Ctrl+M')
+moveAction.setStatusTip('Move')
+moveAction.triggered.connect(moveButtonPressed)
+fm.addAction(moveAction)
+
+homeAction = QtGui.QAction('Home', mw)
+homeAction.setShortcut('Ctrl+H')
+homeAction.setStatusTip('Home')
+homeAction.triggered.connect(homeButtonPressed)
+fm.addAction(homeAction)
+
+addPresetAction = QtGui.QAction('Add Preset', mw)
+addPresetAction.setShortcut('Ctrl+A')
+addPresetAction.setStatusTip('Save current values into a preset setting')
+addPresetAction.triggered.connect(addPresetSettings)
+fm.addAction(addPresetAction)
+
+# Create and set widget layout
 cw = QtGui.QWidget()
 l = QtGui.QFormLayout()
 mw.setCentralWidget(cw)
 cw.setLayout(l)
-styleChoice()
 
+# GUI elements
 position = QtGui.QLineEdit()
 position.setValidator(QtGui.QIntValidator(int(positionMin), int(positionMax)))
 position.setAlignment(QtCore.Qt.AlignLeft)
@@ -105,26 +130,28 @@ homeButton.clicked.connect(homeButtonPressed)
 
 presets = QtGui.QComboBox()
 presets.activated.connect(updatePresetSettings)
-preset_name = QtGui.QLineEdit()
-preset_name.setPlaceholderText("Preset name")
-preset_button = QtGui.QPushButton('Add Preset')
-preset_button.clicked.connect(addPresetSettings)
-preset_layout = QtGui.QHBoxLayout()
-preset_layout.addWidget(presets)
-preset_layout.addWidget(preset_name)
-preset_layout.addWidget(preset_button)
+presetName= QtGui.QLineEdit()
+presetName.setPlaceholderText("Preset name")
+presetButton = QtGui.QPushButton('Add Preset')
+presetButton.clicked.connect(addPresetSettings)
+presetLayout = QtGui.QHBoxLayout()
+presetLayout.addWidget(presets)
+presetLayout.addWidget(presetName)
+presetLayout.addWidget(presetButton)
 
 if homeFlag == 'false':
     homeButton.setEnabled(False)
 
+# Layout 
 l.addRow("Position (deg)", position)
 l.addRow("Velocity (m/s)", velocity)
 l.addRow("Acceleration (m/s^2)", acceleration)
 l.addRow("Current Position", currentPosition)
 l.addRow(moveButton)
 l.addRow(homeButton)
-l.addRow("Presets", preset_layout)
+l.addRow("Presets", presetLayout)
 
+'''
 # Shortcuts
 closeProgramShortcut = QtGui.QShortcut(QtGui.QKeySequence("Ctrl+Q"), mw)
 closeProgramShortcut.activated.connect(closeProgram)
@@ -132,12 +159,14 @@ homeButtonShortcut = QtGui.QShortcut(QtGui.QKeySequence("Ctrl+H"), mw)
 homeButtonShortcut.activated.connect(homeButtonPressed)
 moveButtonShortcut = QtGui.QShortcut(QtGui.QKeySequence("Ctrl+M"), mw)
 moveButtonShortcut.activated.connect(moveButtonPressed)
+'''
 
 # Internal timers
 timer = QtCore.QTimer()
 timer.timeout.connect(positionUpdate)
 timer.start(1000)
 
+mw.statusBar()
 mw.show()
 
 if __name__ == '__main__':
