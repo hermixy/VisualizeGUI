@@ -1,4 +1,6 @@
 from PyQt4 import QtCore, QtGui 
+from widgets import PortSettingPopUp
+from widgets import ZMQPlotWidget 
 import pyqtgraph as pg
 import random
 import zmq
@@ -37,8 +39,8 @@ def addPresetSettings():
             "acceleration": a 
             }
     index = presets.findText(name)
-    if index >= 0:
-        presets.setCurrentIndex(index)
+    presets.setCurrentIndex(index)
+    presetName.clear()
 
 # Update fields with choosen preset setting
 def updatePresetSettings():
@@ -49,9 +51,18 @@ def updatePresetSettings():
 
 def closeProgram():
     exit(1)
+def changeIPPortSettings():
+    global portIPAddress
+    portIPAddress = PortSettingPopUp()
+    portIPAddress.setWindowTitle("IP/Port Settings")
+    #portIPAddress.resize(250)
     
+    # Center popup relative to original GUI position
+    point = portIPAddress.rect().center()
+    globalPoint = portIPAddress.mapToGlobal(point)
+    portIPAddress.move(globalPoint)
+     
 presetTable = {}
-
 context = zmq.Context()
 socket = context.socket(zmq.REQ)
 socket.connect("tcp://192.168.30.30:6010")
@@ -103,11 +114,15 @@ fm.addAction(addPresetAction)
 
 # Create and set widget layout
 cw = QtGui.QWidget()
+mainLayout = QtGui.QVBoxLayout()
 l = QtGui.QFormLayout()
+mainLayout.addLayout(l)
 mw.setCentralWidget(cw)
-cw.setLayout(l)
+cw.setLayout(mainLayout)
 
 # GUI elements
+portSettings = QtGui.QPushButton('IP/Port Settings')
+portSettings.clicked.connect(changeIPPortSettings)
 position = QtGui.QLineEdit()
 position.setValidator(QtGui.QIntValidator(int(positionMin), int(positionMax)))
 position.setAlignment(QtCore.Qt.AlignLeft)
@@ -142,7 +157,8 @@ presetLayout.addWidget(presetButton)
 if homeFlag == 'false':
     homeButton.setEnabled(False)
 
-# Layout 
+# Layout
+l.addRow(portSettings)
 l.addRow("Position (deg)", position)
 l.addRow("Velocity (m/s)", velocity)
 l.addRow("Acceleration (m/s^2)", acceleration)

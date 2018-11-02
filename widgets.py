@@ -53,14 +53,14 @@ class ZMQPlotWidget(QtGui.QWidget):
         # Receives (topic, data)
         self.topic, self.ZMQDataPoint = self.ZMQSocket.recv().split()
         if not self.ZMQData:
-            #self.ZMQData.append(random.randint(1,101))        
-            self.ZMQData.append(int(self.ZMQDataPoint))
+            self.ZMQData.append(random.randint(1,101))        
+            #self.ZMQData.append(int(self.ZMQDataPoint))
             pass
         if len(self.ZMQData) == self.ZMQBuffer:
             self.ZMQData.pop(0)
         
-        #self.ZMQData.append(random.randint(1,101))        
-        self.ZMQData.append(int(self.ZMQDataPoint))
+        self.ZMQData.append(random.randint(1,101))        
+        #self.ZMQData.append(int(self.ZMQDataPoint))
         self.ZMQPlotter.setData(self.ZMQ_X_Axis[len(self.ZMQ_X_Axis) - len(self.ZMQData):], self.ZMQData)
 
     def getZMQTimerFrequency(self):
@@ -68,4 +68,39 @@ class ZMQPlotWidget(QtGui.QWidget):
 
     def getZMQLayout(self):
         return self.layout
+
+class PortSettingPopUp(QtGui.QWidget):
+    def __init__(self,parent=None):
+        super(PortSettingPopUp, self).__init__(parent)
+        self.popUpLayout = QtGui.QFormLayout(self)
+        self.TCPAddress = QtGui.QLineEdit()
+        self.TCPAddress.setMaxLength(15)
+        self.TCPPort = QtGui.QLineEdit()
+        self.TCPPort.setValidator(QtGui.QIntValidator())
+        self.TCPTopic = QtGui.QLineEdit()
+        self.TCPTopic.setValidator(QtGui.QIntValidator())
+        self.popUpButtonLayout = QtGui.QHBoxLayout()
+        self.popUpConfirmButton = QtGui.QPushButton('Save')
+        self.popUpConfirmButton.clicked.connect(self.confirmButton)
+        self.popUpCancelButton = QtGui.QPushButton('Cancel')
+        self.popUpCancelButton.clicked.connect(self.cancelButton)
+        self.popUpButtonLayout.addWidget(self.popUpConfirmButton)
+        self.popUpButtonLayout.addWidget(self.popUpCancelButton)
+
+        self.popUpLayout.addRow("TCP Address", self.TCPAddress)
+        self.popUpLayout.addRow("Port", self.TCPPort)
+        self.popUpLayout.addRow("Topic", self.TCPTopic)
+        self.popUpLayout.addRow(self.popUpButtonLayout)
+        self.setWindowModality(QtCore.Qt.ApplicationModal)
+        self.show()
+    def getPortSettingPopUpLayout(self):
+        return self.popUpLayout
+    def confirmButton(self):
+        pass
+        
+    def cancelButton(self):
+        print('pass')
+        self.close()
+
+
 
