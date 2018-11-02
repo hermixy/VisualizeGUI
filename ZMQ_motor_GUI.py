@@ -52,7 +52,8 @@ def updatePresetSettings():
     position.setText(preset_table[name]["position"])
     velocity.setText(preset_table[name]["velocity"])
     acceleration.setText(preset_table[name]["acceleration"])
-
+def closeProgram():
+    exit(1)
     
 
 preset_table = {}
@@ -124,6 +125,15 @@ l.addRow(moveButton)
 l.addRow(homeButton)
 l.addRow("Presets", preset_layout)
 
+# Shortcuts
+closeProgramShortcut = QtGui.QShortcut(QtGui.QKeySequence("Ctrl+Q"), mw)
+closeProgramShortcut.activated.connect(closeProgram)
+homeButtonShortcut = QtGui.QShortcut(QtGui.QKeySequence("Ctrl+H"), mw)
+homeButtonShortcut.activated.connect(homeButtonPressed)
+moveButtonShortcut = QtGui.QShortcut(QtGui.QKeySequence("Ctrl+M"), mw)
+moveButtonShortcut.activated.connect(moveButtonPressed)
+
+# Internal timers
 timer = QtCore.QTimer()
 timer.timeout.connect(positionUpdate)
 timer.start(1000)
