@@ -69,9 +69,9 @@ class ZMQPlotWidget(QtGui.QWidget):
     def getZMQLayout(self):
         return self.layout
 
-class PortSettingPopUp(QtGui.QWidget):
+class PortSettingPopUpWidget(QtGui.QWidget):
     def __init__(self,parent=None):
-        super(PortSettingPopUp, self).__init__(parent)
+        super(PortSettingPopUpWidget, self).__init__(parent)
         self.popUpLayout = QtGui.QFormLayout(self)
         self.TCPAddress = QtGui.QLineEdit()
         self.TCPAddress.setMaxLength(15)
@@ -80,11 +80,11 @@ class PortSettingPopUp(QtGui.QWidget):
         self.TCPTopic = QtGui.QLineEdit()
         self.TCPTopic.setValidator(QtGui.QIntValidator())
         self.popUpButtonLayout = QtGui.QHBoxLayout()
-        self.popUpConfirmButton = QtGui.QPushButton('Save')
-        self.popUpConfirmButton.clicked.connect(self.confirmButton)
+        self.popUpSaveButton = QtGui.QPushButton('Save')
+        self.popUpSaveButton.clicked.connect(self.saveButton)
         self.popUpCancelButton = QtGui.QPushButton('Cancel')
         self.popUpCancelButton.clicked.connect(self.cancelButton)
-        self.popUpButtonLayout.addWidget(self.popUpConfirmButton)
+        self.popUpButtonLayout.addWidget(self.popUpSaveButton)
         self.popUpButtonLayout.addWidget(self.popUpCancelButton)
 
         self.popUpLayout.addRow("TCP Address", self.TCPAddress)
@@ -97,8 +97,10 @@ class PortSettingPopUp(QtGui.QWidget):
     def keyPressEvent(self, event):
         if event.key() == QtCore.Qt.Key_Escape:
             self.close()
-    def confirmButton(self):
-        pass
+    def saveButton(self):
+        print(self.TCPAddress.text())
+        print(self.TCPPort.text())
+        print(self.TCPTopic.text())
         
     def cancelButton(self):
         self.close()

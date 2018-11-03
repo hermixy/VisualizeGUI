@@ -1,5 +1,5 @@
 from PyQt4 import QtCore, QtGui 
-from widgets import PortSettingPopUp
+from widgets import PortSettingPopUpWidget
 from widgets import ZMQPlotWidget 
 import pyqtgraph as pg
 import random
@@ -13,13 +13,15 @@ def positionUpdate():
     currentPosition.setText(currentPositionValue)
 
 def moveButtonPressed():
-    socket.send("move 1 2 3")
-    result = socket.recv()
+    global socket1
+    socket1.send("move 1 2 3")
+    result = socket1.recv()
     print("Move response is " + result)
 
 def homeButtonPressed():
-    socket.send("home")
-    result = socket.recv()
+    global socket1
+    socket1.send("home")
+    result = socket1.recv()
     print("Home response is " + result)
 
 def addPresetSettings():
@@ -51,9 +53,10 @@ def updatePresetSettings():
 
 def closeProgram():
     exit(1)
+
 def changeIPPortSettings():
     global portIPAddress
-    portIPAddress = PortSettingPopUp()
+    portIPAddress = PortSettingPopUpWidget()
     portIPAddress.setWindowTitle("IP/Port Settings")
     #portIPAddress.resize(250)
     
@@ -61,30 +64,51 @@ def changeIPPortSettings():
     point = portIPAddress.rect().center()
     globalPoint = portIPAddress.mapToGlobal(point)
     portIPAddress.move(globalPoint)
-     
-presetTable = {}
-context = zmq.Context()
-socket = context.socket(zmq.REQ)
-socket.connect("tcp://192.168.30.30:6010")
-socket.send("info?")
-info = socket.recv()
 
-context2 = zmq.Context()
-socket2 = context2.socket(zmq.SUB)
-socket2.connect("tcp://192.168.30.30:6011")
-socket2.setsockopt(zmq.SUBSCRIBE, "10000")
-topic, currentPositionValue = socket2.recv().split()
+def initZMQHandshake():
+    global velocityMin
+    global velocityMax
+    global accelerationMin
+    global accelerationMax
+    global positionMin
+    global positionMax
+    global homeFlag
+    global units
+    global socket1
+    global socket2
 
-info = [x.strip() for x in info.split(',')]
-print(info)
-velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units = info
+    context1 = zmq.Context()
+    socket1 = context1.socket(zmq.REQ)
+    socket1.connect("tcp://192.168.30.30:6010")
+    socket1.send("info?")
 
+    info = [x.strip() for x in socket1.recv().split(',')]
+    print(info)
+    velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units = info
+    
+    global currentPositionValue
+    context2 = zmq.Context()
+    socket2 = context2.socket(zmq.SUB)
+    socket2.connect("tcp://192.168.30.30:6011")
+    socket2.setsockopt(zmq.SUBSCRIBE, "10000")
+    topic, currentPositionValue = socket2.recv().split()
+
+# Create main application window
 app = QtGui.QApplication([])
 app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
 mw.setWindowTitle('ZMQ Motor GUI')
+initZMQHandshake()
 
-# Menubar
+# Create and set widget layout
+cw = QtGui.QWidget()
+mainLayout = QtGui.QVBoxLayout()
+l = QtGui.QFormLayout()
+mainLayout.addLayout(l)
+mw.setCentralWidget(cw)
+cw.setLayout(mainLayout)
+
+# Menubar/Toolbar
 mb = mw.menuBar()
 fm = mb.addMenu('&File')
 
@@ -112,17 +136,10 @@ addPresetAction.setStatusTip('Save current values into a preset setting')
 addPresetAction.triggered.connect(addPresetSettings)
 fm.addAction(addPresetAction)
 
-# Create and set widget layout
-cw = QtGui.QWidget()
-mainLayout = QtGui.QVBoxLayout()
-l = QtGui.QFormLayout()
-mainLayout.addLayout(l)
-mw.setCentralWidget(cw)
-cw.setLayout(mainLayout)
-
 # GUI elements
 portSettings = QtGui.QPushButton('IP/Port Settings')
 portSettings.clicked.connect(changeIPPortSettings)
+
 position = QtGui.QLineEdit()
 position.setValidator(QtGui.QIntValidator(int(positionMin), int(positionMax)))
 position.setAlignment(QtCore.Qt.AlignLeft)
@@ -140,9 +157,14 @@ currentPosition.setText(currentPositionValue)
 
 moveButton = QtGui.QPushButton('Move')
 moveButton.clicked.connect(moveButtonPressed)
+
 homeButton = QtGui.QPushButton('Home')
 homeButton.clicked.connect(homeButtonPressed)
 
+if homeFlag == 'false':
+    homeButton.setEnabled(False)
+
+presetTable = {}
 presets = QtGui.QComboBox()
 presets.activated.connect(updatePresetSettings)
 presetName= QtGui.QLineEdit()
@@ -153,9 +175,6 @@ presetLayout = QtGui.QHBoxLayout()
 presetLayout.addWidget(presets)
 presetLayout.addWidget(presetName)
 presetLayout.addWidget(presetButton)
-
-if homeFlag == 'false':
-    homeButton.setEnabled(False)
 
 # Layout
 l.addRow(portSettings)
