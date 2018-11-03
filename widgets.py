@@ -93,13 +93,14 @@ class PortSettingPopUp(QtGui.QWidget):
         self.popUpLayout.addRow(self.popUpButtonLayout)
         self.setWindowModality(QtCore.Qt.ApplicationModal)
         self.show()
-    def getPortSettingPopUpLayout(self):
-        return self.popUpLayout
+
+    def keyPressEvent(self, event):
+        if event.key() == QtCore.Qt.Key_Escape:
+            self.close()
     def confirmButton(self):
         pass
         
     def cancelButton(self):
-        print('pass')
         self.close()
 
 

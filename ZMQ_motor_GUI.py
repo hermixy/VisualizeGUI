@@ -160,8 +160,8 @@ if homeFlag == 'false':
 # Layout
 l.addRow(portSettings)
 l.addRow("Position (deg)", position)
-l.addRow("Velocity (m/s)", velocity)
-l.addRow("Acceleration (m/s^2)", acceleration)
+l.addRow("Velocity (deg/s)", velocity)
+l.addRow("Acceleration (deg/s^2)", acceleration)
 l.addRow("Current Position", currentPosition)
 l.addRow(moveButton)
 l.addRow(homeButton)
