@@ -58,7 +58,7 @@ def changeIPPortSettings():
     global portIPAddress
     portIPAddress = PortSettingPopUpWidget()
     portIPAddress.setWindowTitle("IP/Port Settings")
-    #portIPAddress.resize(250)
+    portIPAddress.setFixedSize(195,150)
     
     # Center popup relative to original GUI position
     point = portIPAddress.rect().center()
