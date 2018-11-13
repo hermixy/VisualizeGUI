@@ -68,7 +68,7 @@ def changeIPPortSettings():
     point = portIPAddress.rect().center()
     globalPoint = portIPAddress.mapToGlobal(point)
     portIPAddress.move(globalPoint)
-        
+
 def initZMQHandshake():
     global velocityMin
     global velocityMax
@@ -205,6 +205,22 @@ moveButtonShortcut.activated.connect(moveButtonPressed)
 timer = QtCore.QTimer()
 timer.timeout.connect(positionUpdate)
 timer.start(1000)
+
+def updatePortIPAddress():
+    global portIPAddress
+    try:
+        position_address = portIPAddress.getPositionAddress()
+        if position_address:
+            print(position_address)
+
+        else:
+            pass
+    except NameError:
+        pass
+    
+t = QtCore.QTimer()
+t.timeout.connect(updatePortIPAddress)
+t.start(1000)
 
 mw.statusBar()
 mw.show()

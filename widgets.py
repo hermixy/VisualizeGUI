@@ -133,8 +133,8 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         address = str(self.PS_TCPAddress.text())
         port = str(self.PS_TCPPort.text())
         topic = str(self.PS_TCPTopic.text())
-        self.position_address = (address, port ,topic)
-        return self.position_address
+        self.position_address = (address, port, topic)
+        self.close()
         '''
         print(address)
         print(port)
