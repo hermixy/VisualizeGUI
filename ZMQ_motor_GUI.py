@@ -7,21 +7,25 @@ import zmq
 import numpy as np
 import sys
 
+# Request/reply
+parameter_limit_address = "tcp://192.168.30.125:6010"
+# Pub/sub
+position_address = "tcp://192.168.30.125:6011"
 def positionUpdate():
     global currentPositionValue
-    topic, currentPositionValue = socket2.recv().split()
+    topic, currentPositionValue = position_socket.recv().split()
     currentPosition.setText(currentPositionValue)
 
 def moveButtonPressed():
-    global socket1
-    socket1.send("move 1 2 3")
-    result = socket1.recv()
+    global parameter_socket
+    parameter_socket.send("move 1 2 3")
+    result = parameter_socket.recv()
     print("Move response is " + result)
 
 def homeButtonPressed():
-    global socket1
-    socket1.send("home")
-    result = socket1.recv()
+    global parameter_socket
+    parameter_socket.send("home")
+    result = parameter_socket.recv()
     print("Home response is " + result)
 
 def addPresetSettings():
@@ -59,12 +63,12 @@ def changeIPPortSettings():
     portIPAddress = PortSettingPopUpWidget()
     portIPAddress.setWindowTitle("IP/Port Settings")
     portIPAddress.setFixedSize(195,150)
-    
+
     # Center popup relative to original GUI position
     point = portIPAddress.rect().center()
     globalPoint = portIPAddress.mapToGlobal(point)
     portIPAddress.move(globalPoint)
-
+        
 def initZMQHandshake():
     global velocityMin
     global velocityMax
@@ -74,24 +78,26 @@ def initZMQHandshake():
     global positionMax
     global homeFlag
     global units
-    global socket1
-    global socket2
+    global parameter_socket
+    global position_socket
+    global parameter_limit_address
+    global position_address
 
-    context1 = zmq.Context()
-    socket1 = context1.socket(zmq.REQ)
-    socket1.connect("tcp://192.168.30.30:6010")
-    socket1.send("info?")
+    parameter_context = zmq.Context()
+    parameter_socket = parameter_context.socket(zmq.REQ)
+    parameter_socket.connect(parameter_limit_address)
+    parameter_socket.send("info?")
+    parameter_information = [x.strip() for x in parameter_socket.recv().split(',')]
 
-    info = [x.strip() for x in socket1.recv().split(',')]
-    print(info)
-    velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units = info
+    print(parameter_information)
+    velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units = parameter_information
     
     global currentPositionValue
-    context2 = zmq.Context()
-    socket2 = context2.socket(zmq.SUB)
-    socket2.connect("tcp://192.168.30.30:6011")
-    socket2.setsockopt(zmq.SUBSCRIBE, "10000")
-    topic, currentPositionValue = socket2.recv().split()
+    position_context = zmq.Context()
+    position_socket = position_context.socket(zmq.SUB)
+    position_socket.connect(position_address)
+    position_socket.setsockopt(zmq.SUBSCRIBE, "10000")
+    topic, currentPositionValue = position_socket.recv().split()
 
 # Create main application window
 app = QtGui.QApplication([])
@@ -195,7 +201,6 @@ homeButtonShortcut.activated.connect(homeButtonPressed)
 moveButtonShortcut = QtGui.QShortcut(QtGui.QKeySequence("Ctrl+M"), mw)
 moveButtonShortcut.activated.connect(moveButtonPressed)
 '''
-
 # Internal timers
 timer = QtCore.QTimer()
 timer.timeout.connect(positionUpdate)
