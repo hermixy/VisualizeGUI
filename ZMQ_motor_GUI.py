@@ -8,11 +8,16 @@ import numpy as np
 import sys
 
 # Request/reply
-parameter_limit_address = "tcp://192.168.30.125:6010"
+parameter_limit_address = "tcp://192.168.1.125:6010"
 # Pub/sub
-position_address = "tcp://192.168.30.125:6011"
+position_address = "tcp://192.168.1.125:6011"
+position_topic = "10000"
+old_position_address = ''
+print('start')
+
 def positionUpdate():
     global currentPositionValue
+    global position_socket
     topic, currentPositionValue = position_socket.recv().split()
     currentPosition.setText(currentPositionValue)
 
@@ -96,7 +101,7 @@ def initZMQHandshake():
     position_context = zmq.Context()
     position_socket = position_context.socket(zmq.SUB)
     position_socket.connect(position_address)
-    position_socket.setsockopt(zmq.SUBSCRIBE, "10000")
+    position_socket.setsockopt(zmq.SUBSCRIBE, position_topic)
     topic, currentPositionValue = position_socket.recv().split()
 
 # Create main application window
@@ -202,25 +207,38 @@ moveButtonShortcut = QtGui.QShortcut(QtGui.QKeySequence("Ctrl+M"), mw)
 moveButtonShortcut.activated.connect(moveButtonPressed)
 '''
 # Internal timers
-timer = QtCore.QTimer()
-timer.timeout.connect(positionUpdate)
-timer.start(1000)
+positionTimer = QtCore.QTimer()
+positionTimer.timeout.connect(positionUpdate)
+positionTimer.start(1000)
 
 def updatePortIPAddress():
     global portIPAddress
+    global position_address
+    global position_topic
+    global position_socket
+    global position_context
+    global old_position_address
     try:
-        position_address = portIPAddress.getPositionAddress()
-        if position_address:
-            print(position_address)
-
+        raw_position_address = portIPAddress.getPositionAddress()
+        if raw_position_address:
+            address, port, topic = raw_position_address
+            position_address = "tcp://" + address + ":" + port
+            if old_position_address != position_address:
+                print('connecting')
+                old_position_address = position_address
+                position_topic = topic
+                position_context = zmq.Context()
+                position_socket = position_context.socket(zmq.SUB)
+                position_socket.connect(position_address)
+                position_socket.setsockopt(zmq.SUBSCRIBE, position_topic)
         else:
             pass
     except NameError:
         pass
     
-t = QtCore.QTimer()
-t.timeout.connect(updatePortIPAddress)
-t.start(1000)
+portTimer = QtCore.QTimer()
+portTimer.timeout.connect(updatePortIPAddress)
+portTimer.start(1000)
 
 mw.statusBar()
 mw.show()

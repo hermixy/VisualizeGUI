@@ -133,24 +133,19 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         address = str(self.PS_TCPAddress.text())
         port = str(self.PS_TCPPort.text())
         topic = str(self.PS_TCPTopic.text())
-        self.position_address = (address, port, topic)
-        self.close()
+        if address and port and topic:
+            self.position_address = (address, port, topic)
+        else:
+            self.position_address = ()
         '''
-        print(address)
-        print(port)
         position_address = "tcp://" + address + ":" + port
-        print(topic)
-
         context = zmq.Context()
         socket = context.socket(zmq.SUB)
-        print(position_address)
         socket.connect(position_address)
         socket.setsockopt(zmq.SUBSCRIBE, topic)
-        posValue = ''
-        
-        topic, posValue = socket.recv(zmq.NOBLOCK).split()
-        print(posValue)
         '''
+        print("closed popup")
+        self.close()
         
     def PS_cancelButton(self):
         self.close()
