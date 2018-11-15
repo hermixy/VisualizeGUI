@@ -4,6 +4,8 @@ import random
 import zmq
 import numpy as np
 import sys
+import time
+from threading import Thread
 
 class ZMQPlotWidget(QtGui.QWidget):
     def __init__(self, parent=None):
@@ -133,18 +135,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         address = str(self.PS_TCPAddress.text())
         port = str(self.PS_TCPPort.text())
         topic = str(self.PS_TCPTopic.text())
-        if address and port and topic:
-            self.position_address = (address, port, topic)
-        else:
-            self.position_address = ()
-        '''
-        position_address = "tcp://" + address + ":" + port
-        context = zmq.Context()
-        socket = context.socket(zmq.SUB)
-        socket.connect(position_address)
-        socket.setsockopt(zmq.SUBSCRIBE, topic)
-        '''
-        print("closed popup")
+        Thread(target=self.checkValidPort, args=(address,port,topic)).start()
         self.close()
         
     def PS_cancelButton(self):
@@ -160,3 +151,29 @@ class PortSettingPopUpWidget(QtGui.QWidget):
     def getPositionAddress(self):
         return self.position_address
 
+    def checkValidPort(self, address, port, topic):
+        if address and port and topic:
+            position_address = "tcp://" + address + ":" + port
+            context = zmq.Context()
+            socket = context.socket(zmq.SUB)
+            socket.connect(position_address)
+            socket.setsockopt(zmq.SUBSCRIBE, topic)
+            # Check for valid data within 2 seconds
+            time_end = time.time() + 2
+            valid_flag = False
+            while time.time() < time_end:
+                try:
+                    topic, data = socket.recv(zmq.NOBLOCK).split()
+                    self.position_address = (address, port, topic)
+                    valid_flag = True
+                    break
+                except zmq.ZMQError, e:
+                    # No data arrived
+                    if e.errno == zmq.EAGAIN:
+                        pass
+                    else:
+                        print("real error")
+            if valid_flag == False:
+                self.position_address = ()
+        else:
+            self.position_address = ()

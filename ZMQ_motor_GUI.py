@@ -13,7 +13,6 @@ parameter_limit_address = "tcp://192.168.1.125:6010"
 position_address = "tcp://192.168.1.125:6011"
 position_topic = "10000"
 old_position_address = ''
-print('start')
 
 def positionUpdate():
     global currentPositionValue
@@ -224,7 +223,6 @@ def updatePortIPAddress():
             address, port, topic = raw_position_address
             position_address = "tcp://" + address + ":" + port
             if old_position_address != position_address:
-                print('connecting')
                 old_position_address = position_address
                 position_topic = topic
                 position_context = zmq.Context()
@@ -235,7 +233,7 @@ def updatePortIPAddress():
             pass
     except NameError:
         pass
-    
+
 portTimer = QtCore.QTimer()
 portTimer.timeout.connect(updatePortIPAddress)
 portTimer.start(1000)
