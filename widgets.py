@@ -76,53 +76,54 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         super(PortSettingPopUpWidget, self).__init__(parent)
         
         self.position_address = ()
+        self.parameter_address = ()
         self.tabs = QtGui.QTabWidget(self)
-        self.publishSubscribeTab = QtGui.QWidget()
-        self.clientServerTab = QtGui.QWidget()
+        self.positionTab = QtGui.QWidget()
+        self.parameterTab = QtGui.QWidget()
 
-        # Publisher/subscriber tab
-        self.publishSubscribeLayout = QtGui.QFormLayout()
-        self.PS_TCPAddress = QtGui.QLineEdit()
-        self.PS_TCPAddress.setMaxLength(15)
-        self.PS_TCPPort = QtGui.QLineEdit()
-        self.PS_TCPPort.setValidator(QtGui.QIntValidator())
-        self.PS_TCPTopic = QtGui.QLineEdit()
-        self.PS_TCPTopic.setValidator(QtGui.QIntValidator())
-        self.publishSubscribeButtonLayout = QtGui.QHBoxLayout()
-        self.publishSubscribeSaveButton = QtGui.QPushButton('Save')
-        self.publishSubscribeSaveButton.clicked.connect(self.PS_saveButton)
-        self.publishSubscribeCancelButton = QtGui.QPushButton('Cancel')
-        self.publishSubscribeCancelButton.clicked.connect(self.PS_cancelButton)
-        self.publishSubscribeButtonLayout.addWidget(self.publishSubscribeSaveButton)
-        self.publishSubscribeButtonLayout.addWidget(self.publishSubscribeCancelButton)
+        # Position
+        self.positionLayout = QtGui.QFormLayout()
+        self.position_TCPAddress = QtGui.QLineEdit()
+        self.position_TCPAddress.setMaxLength(15)
+        self.position_TCPPort = QtGui.QLineEdit()
+        self.position_TCPPort.setValidator(QtGui.QIntValidator())
+        self.position_TCPTopic = QtGui.QLineEdit()
+        self.position_TCPTopic.setValidator(QtGui.QIntValidator())
+        self.positionButtonLayout = QtGui.QHBoxLayout()
+        self.positionConnectButton = QtGui.QPushButton('Connect')
+        self.positionConnectButton.clicked.connect(self.position_saveButton)
+        self.positionCancelButton = QtGui.QPushButton('Cancel')
+        self.positionCancelButton.clicked.connect(self.position_cancelButton)
+        self.positionButtonLayout.addWidget(self.positionConnectButton)
+        self.positionButtonLayout.addWidget(self.positionCancelButton)
 
-        self.publishSubscribeLayout.addRow("TCP Address", self.PS_TCPAddress)
-        self.publishSubscribeLayout.addRow("Port", self.PS_TCPPort)
-        self.publishSubscribeLayout.addRow("Topic", self.PS_TCPTopic)
-        self.publishSubscribeLayout.addRow(self.publishSubscribeButtonLayout)
-        self.publishSubscribeTab.setLayout(self.publishSubscribeLayout)
+        self.positionLayout.addRow("TCP Address", self.position_TCPAddress)
+        self.positionLayout.addRow("Port", self.position_TCPPort)
+        self.positionLayout.addRow("Topic", self.position_TCPTopic)
+        self.positionLayout.addRow(self.positionButtonLayout)
+        self.positionTab.setLayout(self.positionLayout)
 
-        # Client/server tab
-        self.clientServerLayout = QtGui.QFormLayout() 
-        self.CS_TCPAddress = QtGui.QLineEdit()
-        self.CS_TCPAddress.setMaxLength(15)
-        self.CS_TCPPort = QtGui.QLineEdit()
-        self.CS_TCPPort.setValidator(QtGui.QIntValidator())
-        self.clientServerButtonLayout = QtGui.QHBoxLayout()
-        self.clientServerSaveButton = QtGui.QPushButton('Save')
-        self.clientServerSaveButton.clicked.connect(self.CS_saveButton)
-        self.clientServerCancelButton = QtGui.QPushButton('Cancel')
-        self.clientServerCancelButton.clicked.connect(self.CS_cancelButton)
-        self.clientServerButtonLayout.addWidget(self.clientServerSaveButton)
-        self.clientServerButtonLayout.addWidget(self.clientServerCancelButton)
+        # Parameter
+        self.parameterLayout = QtGui.QFormLayout() 
+        self.parameter_TCPAddress = QtGui.QLineEdit()
+        self.parameter_TCPAddress.setMaxLength(15)
+        self.parameter_TCPPort = QtGui.QLineEdit()
+        self.parameter_TCPPort.setValidator(QtGui.QIntValidator())
+        self.parameterButtonLayout = QtGui.QHBoxLayout()
+        self.parameterConnectButton = QtGui.QPushButton('Save')
+        self.parameterConnectButton.clicked.connect(self.parameter_saveButton)
+        self.parameterCancelButton = QtGui.QPushButton('Cancel')
+        self.parameterCancelButton.clicked.connect(self.parameter_cancelButton)
+        self.parameterButtonLayout.addWidget(self.parameterConnectButton)
+        self.parameterButtonLayout.addWidget(self.parameterCancelButton)
 
-        self.clientServerLayout.addRow("TCP Address", self.CS_TCPAddress)
-        self.clientServerLayout.addRow("Port", self.CS_TCPPort)
-        self.clientServerLayout.addRow(self.clientServerButtonLayout)
-        self.clientServerTab.setLayout(self.clientServerLayout)
+        self.parameterLayout.addRow("TCP Address", self.parameter_TCPAddress)
+        self.parameterLayout.addRow("Port", self.parameter_TCPPort)
+        self.parameterLayout.addRow(self.parameterButtonLayout)
+        self.parameterTab.setLayout(self.parameterLayout)
         
-        self.tabs.addTab(self.publishSubscribeTab, 'Publish/Subscribe')
-        self.tabs.addTab(self.clientServerTab, 'Client/Server')
+        self.tabs.addTab(self.positionTab, 'Position')
+        self.tabs.addTab(self.parameterTab, 'Parameters')
          
         self.setWindowModality(QtCore.Qt.ApplicationModal)
         self.show()
@@ -131,21 +132,14 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         if event.key() == QtCore.Qt.Key_Escape:
             self.close()
 
-    def PS_saveButton(self):
-        address = str(self.PS_TCPAddress.text())
-        port = str(self.PS_TCPPort.text())
-        topic = str(self.PS_TCPTopic.text())
-        Thread(target=self.checkValidPort, args=(address,port,topic)).start()
+    def position_saveButton(self):
+        address = str(self.position_TCPAddress.text())
+        port = str(self.position_TCPPort.text())
+        topic = str(self.position_TCPTopic.text())
+        Thread(target=self.positionCheckValidPort, args=(address,port,topic)).start()
         self.close()
         
-    def PS_cancelButton(self):
-        self.close()
-
-    def CS_saveButton(self):
-        print(self.CS_TCPAddress.text())
-        print(self.CS_TCPPort.text())
-        
-    def CS_cancelButton(self):
+    def position_cancelButton(self):
         self.close()
 
     def getPositionAddress(self):
@@ -154,7 +148,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
     def setPositionAddress(self, s):
         self.position_address = s
 
-    def checkValidPort(self, address, port, topic):
+    def positionCheckValidPort(self, address, port, topic):
         if address and port and topic:
             position_address = "tcp://" + address + ":" + port
             context = zmq.Context()
@@ -180,4 +174,19 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                 self.position_address = (False)
         else:
             self.position_address = (False)
+
+    def parameter_saveButton(self):
+        address = self.parameter_TCPAddress.text()
+        port = self.parameter_TCPPort.text()
+        Thread(target=self.parameterCheckValidPort, args=(address,port)).start()
+        self.close()
+        
+    def parameter_cancelButton(self):
+        self.close()
+
+    def getParameterAddress(self):
+        return self.parameter_address
+    
+    def setParameterAddress(self, s):
+        self.parameter_address = s
 

@@ -7,12 +7,13 @@ import zmq
 import numpy as np
 import sys
 
-# Request/reply
-parameter_limit_address = "tcp://192.168.1.125:6010"
 # Pub/sub
 position_address = "tcp://192.168.1.125:6011"
 position_topic = "10000"
 old_position_address = ''
+
+# Request/reply
+parameter_address = "tcp://192.168.1.125:6010"
 
 def positionUpdate():
     global currentPositionValue
@@ -63,15 +64,15 @@ def closeProgram():
     exit(1)
 
 def changeIPPortSettings():
-    global portIPAddress
-    portIPAddress = PortSettingPopUpWidget()
-    portIPAddress.setWindowTitle("IP/Port Settings")
-    portIPAddress.setFixedSize(195,150)
+    global portAddress
+    portAddress = PortSettingPopUpWidget()
+    portAddress.setWindowTitle("IP/Port Settings")
+    portAddress.setFixedSize(195,150)
 
     # Center popup relative to original GUI position
-    point = portIPAddress.rect().center()
-    globalPoint = portIPAddress.mapToGlobal(point)
-    portIPAddress.move(globalPoint)
+    point = portAddress.rect().center()
+    globalPoint = portAddress.mapToGlobal(point)
+    portAddress.move(globalPoint)
 
 def initZMQHandshake():
     global velocityMin
@@ -82,20 +83,13 @@ def initZMQHandshake():
     global positionMax
     global homeFlag
     global units
-    global parameter_socket
+
     global position_socket
-    global parameter_limit_address
     global position_address
 
-    parameter_context = zmq.Context()
-    parameter_socket = parameter_context.socket(zmq.REQ)
-    parameter_socket.connect(parameter_limit_address)
-    parameter_socket.send("info?")
-    parameter_information = [x.strip() for x in parameter_socket.recv().split(',')]
+    global parameter_socket
+    global parameter_address
 
-    print(parameter_information)
-    velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units = parameter_information
-    
     global currentPositionValue
     position_context = zmq.Context()
     position_socket = position_context.socket(zmq.SUB)
@@ -103,6 +97,15 @@ def initZMQHandshake():
     position_socket.setsockopt(zmq.SUBSCRIBE, position_topic)
     topic, currentPositionValue = position_socket.recv().split()
 
+    parameter_context = zmq.Context()
+    parameter_socket = parameter_context.socket(zmq.REQ)
+    parameter_socket.connect(parameter_address)
+    parameter_socket.send("info?")
+    parameter_information = [x.strip() for x in parameter_socket.recv().split(',')]
+
+    print(parameter_information)
+    velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units = parameter_information
+    
 # Create main application window
 app = QtGui.QApplication([])
 app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
@@ -212,16 +215,16 @@ positionTimer = QtCore.QTimer()
 positionTimer.timeout.connect(positionUpdate)
 positionTimer.start(1000)
 
-def updatePortIPAddress():
-    global portIPAddress
+def positionPortAddressUpdate():
+    global portAddress
     global position_address
+    global position_context
     global position_topic
     global position_socket
-    global position_context
     global old_position_address
     global statusBar
     try:
-        raw_position_address = portIPAddress.getPositionAddress()
+        raw_position_address = portAddress.getPositionAddress()
         # Already verified working address
         if raw_position_address and raw_position_address != '()':
             address, port, topic = raw_position_address
@@ -235,18 +238,18 @@ def updatePortIPAddress():
                 position_socket.connect(position_address)
                 position_socket.setsockopt(zmq.SUBSCRIBE, position_topic)
                 statusBar.showMessage('Successfully connected to ' + position_address, 8000)
-                portIPAddress.setPositionAddress("()")
+                portAddress.setPositionAddress("()")
         elif not raw_position_address and type(raw_position_address) is bool: 
-            portIPAddress.setPositionAddress("()")
-            statusBar.showMessage('Invalid IP/Port settings!', 8000) 
+            portAddress.setPositionAddress("()")
+            statusBar.showMessage('Invalid position IP/Port settings!', 8000) 
         else:
             pass
     except NameError:
         pass
 
-portTimer = QtCore.QTimer()
-portTimer.timeout.connect(updatePortIPAddress)
-portTimer.start(1000)
+positionPortTimer = QtCore.QTimer()
+positionPortTimer.timeout.connect(positionPortAddressUpdate)
+positionPortTimer.start(1000)
 
 mw.statusBar()
 mw.show()
