@@ -109,6 +109,8 @@ app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
 mw.setWindowTitle('ZMQ Motor GUI')
 initZMQHandshake()
+statusBar = QtGui.QStatusBar()
+mw.setStatusBar(statusBar)
 
 # Create and set widget layout
 cw = QtGui.QWidget()
@@ -217,11 +219,14 @@ def updatePortIPAddress():
     global position_socket
     global position_context
     global old_position_address
+    global statusBar
     try:
         raw_position_address = portIPAddress.getPositionAddress()
-        if raw_position_address:
+        # Already verified working address
+        if raw_position_address and raw_position_address != '()':
             address, port, topic = raw_position_address
             position_address = "tcp://" + address + ":" + port
+            # Different address from current settings
             if old_position_address != position_address:
                 old_position_address = position_address
                 position_topic = topic
@@ -229,6 +234,11 @@ def updatePortIPAddress():
                 position_socket = position_context.socket(zmq.SUB)
                 position_socket.connect(position_address)
                 position_socket.setsockopt(zmq.SUBSCRIBE, position_topic)
+                statusBar.showMessage('Successfully connected to ' + position_address, 8000)
+                portIPAddress.setPositionAddress("()")
+        elif not raw_position_address and type(raw_position_address) is bool: 
+            portIPAddress.setPositionAddress("()")
+            statusBar.showMessage('Invalid IP/Port settings!', 8000) 
         else:
             pass
     except NameError:

@@ -150,6 +150,9 @@ class PortSettingPopUpWidget(QtGui.QWidget):
 
     def getPositionAddress(self):
         return self.position_address
+    
+    def setPositionAddress(self, s):
+        self.position_address = s
 
     def checkValidPort(self, address, port, topic):
         if address and port and topic:
@@ -158,8 +161,8 @@ class PortSettingPopUpWidget(QtGui.QWidget):
             socket = context.socket(zmq.SUB)
             socket.connect(position_address)
             socket.setsockopt(zmq.SUBSCRIBE, topic)
-            # Check for valid data within 2 seconds
-            time_end = time.time() + 2
+            # Check for valid data within 1 second
+            time_end = time.time() + 1
             valid_flag = False
             while time.time() < time_end:
                 try:
@@ -174,6 +177,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                     else:
                         print("real error")
             if valid_flag == False:
-                self.position_address = ()
+                self.position_address = (False)
         else:
-            self.position_address = ()
+            self.position_address = (False)
+
