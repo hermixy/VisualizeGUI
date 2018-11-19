@@ -72,9 +72,13 @@ class ZMQPlotWidget(QtGui.QWidget):
         return self.layout
 
 class PortSettingPopUpWidget(QtGui.QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, frameDimensions, windowTitle, parent=None):
         super(PortSettingPopUpWidget, self).__init__(parent)
+        self.popUpWidth = 195
+        self.popUpHeight = 150
+        self.setFixedSize(self.popUpWidth, self.popUpHeight)
         
+        self.setWindowTitle(windowTitle)
         self.position_address = ()
         self.parameter_address = ()
         self.tabs = QtGui.QTabWidget(self)

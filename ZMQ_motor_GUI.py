@@ -1,4 +1,5 @@
 from PyQt4 import QtCore, QtGui 
+from PyQt4.QtGui import QSizePolicy
 from widgets import PortSettingPopUpWidget
 from widgets import ZMQPlotWidget 
 import pyqtgraph as pg
@@ -65,14 +66,8 @@ def closeProgram():
 
 def changeIPPortSettings():
     global portAddress
-    portAddress = PortSettingPopUpWidget()
-    portAddress.setWindowTitle("IP/Port Settings")
-    portAddress.setFixedSize(195,150)
-
-    # Center popup relative to original GUI position
-    point = portAddress.rect().center()
-    globalPoint = portAddress.mapToGlobal(point)
-    portAddress.move(globalPoint)
+    global mw
+    portAddress = PortSettingPopUpWidget(mw.frameGeometry(), "IP/Port Settings")
 
 def initZMQHandshake():
     global velocityMin
@@ -122,6 +117,9 @@ l = QtGui.QFormLayout()
 mainLayout.addLayout(l)
 mw.setCentralWidget(cw)
 cw.setLayout(mainLayout)
+statusBar.setSizeGripEnabled(False)
+mw.setFixedSize(350, 275)
+mw.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
 
 # Menubar/Toolbar
 mb = mw.menuBar()
@@ -250,6 +248,16 @@ def positionPortAddressUpdate():
 positionPortTimer = QtCore.QTimer()
 positionPortTimer.timeout.connect(positionPortAddressUpdate)
 positionPortTimer.start(1000)
+
+'''
+def rect():
+    global mw
+    rect = mw.frameGeometry()
+    print(rect)
+tTimer = QtCore.QTimer()
+tTimer.timeout.connect(rect)
+tTimer.start(1000)
+'''
 
 mw.statusBar()
 mw.show()
