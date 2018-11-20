@@ -180,8 +180,8 @@ class PortSettingPopUpWidget(QtGui.QWidget):
             self.position_address = (False)
 
     def parameter_saveButton(self):
-        address = self.parameter_TCPAddress.text()
-        port = self.parameter_TCPPort.text()
+        address = str(self.parameter_TCPAddress.text())
+        port = str(self.parameter_TCPPort.text())
         Thread(target=self.parameterCheckValidPort, args=(address,port)).start()
         self.close()
         
@@ -193,4 +193,34 @@ class PortSettingPopUpWidget(QtGui.QWidget):
     
     def setParameterAddress(self, s):
         self.parameter_address = s
+
+    def parameterCheckValidPort(self, address, port):
+        if address and port:
+            parameter_address = "tcp://" + address + ":" + port
+            context = zmq.Context()
+            socket = context.socket(zmq.REQ)
+            # Prevent program from hanging after closing
+            socket.setsockopt(zmq.LINGER, 0)
+            socket.connect(parameter_address)
+            socket.send("info?")
+            # Check for valid data within 1 second
+            time_end = time.time() + 1
+            valid_flag = False
+            while time.time() < time_end:
+                try:
+                    result = socket.recv(zmq.NOBLOCK).split(',')
+                    print(result)
+                    self.parameter_address = (address, port)
+                    valid_flag = True
+                    break
+                except zmq.ZMQError, e:
+                    # No data arrived
+                    if e.errno == zmq.EAGAIN:
+                        pass
+                    else:
+                        print("real error")
+            if valid_flag == False:
+                self.parameter_address = (False)
+        else:
+            self.parameter_address = (False)
 
