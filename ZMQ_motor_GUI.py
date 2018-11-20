@@ -78,8 +78,10 @@ def closeProgram():
 
 def changeIPPortSettings():
     global portAddress
-    global mw
-    portAddress = PortSettingPopUpWidget(mw.frameGeometry(), "IP/Port Settings")
+    global statusBar
+    
+    statusBar.clearMessage()
+    portAddress = PortSettingPopUpWidget("IP/Port Settings")
 
 def initZMQHandshake():
     global velocityMin
@@ -126,14 +128,17 @@ mw.setStatusBar(statusBar)
 
 # Create and set widget layout
 cw = QtGui.QWidget()
-mainLayout = QtGui.QVBoxLayout()
+plot = ZMQPlotWidget()
+mainLayout = QtGui.QHBoxLayout()
 l = QtGui.QFormLayout()
 mainLayout.addLayout(l)
+mainLayout.addLayout(plot.getZMQLayout())
 mw.setCentralWidget(cw)
 cw.setLayout(mainLayout)
 statusBar.setSizeGripEnabled(False)
-mw.setFixedSize(350, 275)
-mw.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
+#mw.setFixedSize(350, 275)
+mw.setFixedSize(800, 300)
+#mw.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
 
 # Menubar/Toolbar
 mb = mw.menuBar()
@@ -314,6 +319,10 @@ def parameterPortAddressUpdate():
 parameterPortTimer = QtCore.QTimer()
 parameterPortTimer.timeout.connect(parameterPortAddressUpdate)
 parameterPortTimer.start(1000)
+
+ZMQPlotTimer = QtCore.QTimer()
+ZMQPlotTimer.timeout.connect(plot.ZMQPlotUpdater)
+ZMQPlotTimer.start(plot.getZMQTimerFrequency())
 
 mw.statusBar()
 mw.show()
