@@ -322,6 +322,34 @@ parameterPortTimer = QtCore.QTimer()
 parameterPortTimer.timeout.connect(parameterPortAddressUpdate)
 parameterPortTimer.start(1000)
 
+def plotPortAddressUpdate():
+    global portAddress
+    global plot
+    global statusBar
+    try:
+        raw_plot_address = portAddress.getPlotAddress()
+        # Already verified working address
+        if raw_plot_address and raw_plot_address != '()':
+            address, port, topic = raw_plot_address
+            plot_address = "tcp://" + address + ":" + port
+            # Different address from current settings
+            if plot.getZMQPlotAddress() != plot_address:
+                plot.updateZMQPlotAddress(plot_address, topic)
+                statusBar.showMessage('Successfully connected to ' + plot_address, 8000)
+                portAddress.setPlotAddress("()")
+            elif plot.getZMQPlotAddress() == plot_address:
+                statusBar.showMessage('Already connected to ' + plot_address, 8000)
+        elif not raw_plot_address and type(raw_plot_address) is bool: 
+            portAddress.setPlotAddress("()")
+            statusBar.showMessage('Invalid plot IP/Port settings!', 8000) 
+        else:
+            pass
+    except NameError:
+        pass
+
+plotPortTimer = QtCore.QTimer()
+plotPortTimer.timeout.connect(plotPortAddressUpdate)
+plotPortTimer.start(1000)
 mw.statusBar()
 mw.show()
 

@@ -49,7 +49,15 @@ class ZMQPlotWidget(QtGui.QWidget):
 
         self.ZMQPlotTimer = QtCore.QTimer()
         self.ZMQPlotTimer.timeout.connect(self.ZMQPlotUpdater)
-
+    
+    def updateZMQPlotAddress(self, address, topic):
+        self.ZMQ_TCP_Port = address 
+        self.ZMQ_Topic = topic
+        self.ZMQContext = zmq.Context()
+        self.ZMQSocket = self.ZMQContext.socket(zmq.SUB)
+        self.ZMQSocket.connect(self.ZMQ_TCP_Port)
+        self.ZMQSocket.setsockopt(zmq.SUBSCRIBE, self.ZMQ_Topic)
+        
     def ZMQPlotUpdater(self):
         # Receives (topic, data)
         try:
@@ -61,9 +69,12 @@ class ZMQPlotWidget(QtGui.QWidget):
         if len(self.ZMQData) == self.ZMQBuffer:
             self.ZMQData.pop(0)
         
-        self.ZMQData.append(random.randint(1,101))        
-        #self.ZMQData.append(int(self.ZMQDataPoint))
+        #self.ZMQData.append(random.randint(1,101))        
+        self.ZMQData.append(int(self.ZMQDataPoint))
         self.ZMQPlotter.setData(self.ZMQ_X_Axis[len(self.ZMQ_X_Axis) - len(self.ZMQData):], self.ZMQData)
+    
+    def getZMQPlotAddress(self):
+        return self.ZMQ_TCP_Port
 
     def getZMQTimerFrequency(self):
         return self.ZMQ_TIMER_FREQUENCY
@@ -84,9 +95,11 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         self.setWindowTitle(windowTitle)
         self.position_address = ()
         self.parameter_address = ()
+        self.plot_address = ()
         self.tabs = QtGui.QTabWidget(self)
         self.positionTab = QtGui.QWidget()
         self.parameterTab = QtGui.QWidget()
+        self.plotTab = QtGui.QWidget()
 
         # Position
         self.positionLayout = QtGui.QFormLayout()
@@ -128,9 +141,32 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         self.parameterLayout.addRow("Port", self.parameter_TCPPort)
         self.parameterLayout.addRow(self.parameterButtonLayout)
         self.parameterTab.setLayout(self.parameterLayout)
-        
+
+        # Plot
+        self.plotLayout = QtGui.QFormLayout()
+        self.plot_TCPAddress = QtGui.QLineEdit()
+        self.plot_TCPAddress.setMaxLength(15)
+        self.plot_TCPPort = QtGui.QLineEdit()
+        self.plot_TCPPort.setValidator(QtGui.QIntValidator())
+        self.plot_TCPTopic = QtGui.QLineEdit()
+        self.plot_TCPTopic.setValidator(QtGui.QIntValidator())
+        self.plotButtonLayout = QtGui.QHBoxLayout()
+        self.plotConnectButton = QtGui.QPushButton('Connect')
+        self.plotConnectButton.clicked.connect(self.plot_saveButton)
+        self.plotCancelButton = QtGui.QPushButton('Cancel')
+        self.plotCancelButton.clicked.connect(self.plot_cancelButton)
+        self.plotButtonLayout.addWidget(self.plotConnectButton)
+        self.plotButtonLayout.addWidget(self.plotCancelButton)
+
+        self.plotLayout.addRow("TCP Address", self.plot_TCPAddress)
+        self.plotLayout.addRow("Port", self.plot_TCPPort)
+        self.plotLayout.addRow("Topic", self.plot_TCPTopic)
+        self.plotLayout.addRow(self.plotButtonLayout)
+        self.plotTab.setLayout(self.plotLayout)
+
         self.tabs.addTab(self.positionTab, 'Position')
         self.tabs.addTab(self.parameterTab, 'Parameters')
+        self.tabs.addTab(self.plotTab, 'Plot')
          
         self.setWindowModality(QtCore.Qt.ApplicationModal)
         self.show()
@@ -226,4 +262,47 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                 self.parameter_address = (False)
         else:
             self.parameter_address = (False)
+
+    def plot_saveButton(self):
+        address = str(self.plot_TCPAddress.text())
+        port = str(self.plot_TCPPort.text())
+        topic = str(self.plot_TCPTopic.text())
+        Thread(target=self.plotCheckValidPort, args=(address,port,topic)).start()
+        self.close()
+        
+    def plot_cancelButton(self):
+        self.close()
+
+    def getPlotAddress(self):
+        return self.plot_address
+    
+    def setPlotAddress(self, s):
+        self.plot_address = s
+
+    def plotCheckValidPort(self, address, port, topic):
+        if address and port and topic:
+            port_address = "tcp://" + address + ":" + port
+            context = zmq.Context()
+            socket = context.socket(zmq.SUB)
+            socket.connect(port_address)
+            socket.setsockopt(zmq.SUBSCRIBE, topic)
+            # Check for valid data within 1 second
+            time_end = time.time() + 1
+            valid_flag = False
+            while time.time() < time_end:
+                try:
+                    topic, data = socket.recv(zmq.NOBLOCK).split()
+                    self.plot_address = (address, port, topic)
+                    valid_flag = True
+                    break
+                except zmq.ZMQError, e:
+                    # No data arrived
+                    if e.errno == zmq.EAGAIN:
+                        pass
+                    else:
+                        print("real error")
+            if valid_flag == False:
+                self.plot_address = (False)
+        else:
+            self.plot_address = (False)
 
