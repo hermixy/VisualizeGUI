@@ -16,17 +16,14 @@ class ZMQPlotWidget(QtGui.QWidget):
         # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 1
         self.ZMQ_LEFT_X = -10
         self.ZMQ_RIGHT_X = 1
-
-        # Data frequency (Hz) 
-        # Formula = 1 / # (s/Hz)
-        self.ZMQ_FREQUENCY = 1
-        #self.ZMQ_FREQUENCY = .1
+        
+        # Desired Frequency (Hz) = 1 / self.ZMQ_FREQUENCY
+        self.ZMQ_FREQUENCY = .5
 
         # Frequency to update plot (ms)
         self.ZMQ_TIMER_FREQUENCY = self.ZMQ_FREQUENCY * 1000
 
         self.ZMQPlot = pg.PlotWidget()
-        #self.ZMQPlot.setFixedSize(300,350)
         self.ZMQPlot.setXRange(self.ZMQ_LEFT_X, self.ZMQ_RIGHT_X - 1)
         self.layout.addWidget(self.ZMQPlot)
         self.ZMQPlot.setTitle('ZMQ Plot')
@@ -50,13 +47,17 @@ class ZMQPlotWidget(QtGui.QWidget):
         self.ZMQSocket.connect(self.ZMQ_TCP_Port)
         self.ZMQSocket.setsockopt(zmq.SUBSCRIBE, self.ZMQ_Topic)
 
+        self.ZMQPlotTimer = QtCore.QTimer()
+        self.ZMQPlotTimer.timeout.connect(self.ZMQPlotUpdater)
+
     def ZMQPlotUpdater(self):
         # Receives (topic, data)
-        self.topic, self.ZMQDataPoint = self.ZMQSocket.recv().split()
-        if not self.ZMQData:
-            self.ZMQData.append(random.randint(1,101))        
-            #self.ZMQData.append(int(self.ZMQDataPoint))
-            pass
+        try:
+            self.topic, self.ZMQDataPoint = self.ZMQSocket.recv(zmq.NOBLOCK).split()
+        except zmq.ZMQError, e:
+            # No data arrived
+            if e.errno == zmq.EAGAIN:
+                return
         if len(self.ZMQData) == self.ZMQBuffer:
             self.ZMQData.pop(0)
         
@@ -67,6 +68,9 @@ class ZMQPlotWidget(QtGui.QWidget):
     def getZMQTimerFrequency(self):
         return self.ZMQ_TIMER_FREQUENCY
 
+    def start(self):
+        self.ZMQPlotTimer.start(self.getZMQTimerFrequency())
+          
     def getZMQLayout(self):
         return self.layout
 

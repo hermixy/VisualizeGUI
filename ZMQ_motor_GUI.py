@@ -125,10 +125,11 @@ mw.setWindowTitle('ZMQ Motor GUI')
 initZMQHandshake()
 statusBar = QtGui.QStatusBar()
 mw.setStatusBar(statusBar)
+plot = ZMQPlotWidget()
+plot.start()
 
 # Create and set widget layout
 cw = QtGui.QWidget()
-plot = ZMQPlotWidget()
 mainLayout = QtGui.QHBoxLayout()
 l = QtGui.QFormLayout()
 mainLayout.addLayout(l)
@@ -137,8 +138,8 @@ mw.setCentralWidget(cw)
 cw.setLayout(mainLayout)
 statusBar.setSizeGripEnabled(False)
 #mw.setFixedSize(350, 275)
-mw.setFixedSize(800, 300)
-#mw.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
+mw.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
+mw.setFixedSize(800,300)
 
 # Menubar/Toolbar
 mb = mw.menuBar()
@@ -199,7 +200,8 @@ if homeFlag == 'false':
 presetTable = {}
 presets = QtGui.QComboBox()
 presets.activated.connect(updatePresetSettings)
-presetName= QtGui.QLineEdit()
+presetName = QtGui.QLineEdit()
+presetName.setFixedWidth(80)
 presetName.setPlaceholderText("Preset name")
 presetButton = QtGui.QPushButton('Add Preset')
 presetButton.clicked.connect(addPresetSettings)
@@ -319,10 +321,6 @@ def parameterPortAddressUpdate():
 parameterPortTimer = QtCore.QTimer()
 parameterPortTimer.timeout.connect(parameterPortAddressUpdate)
 parameterPortTimer.start(1000)
-
-ZMQPlotTimer = QtCore.QTimer()
-ZMQPlotTimer.timeout.connect(plot.ZMQPlotUpdater)
-ZMQPlotTimer.start(plot.getZMQTimerFrequency())
 
 mw.statusBar()
 mw.show()
