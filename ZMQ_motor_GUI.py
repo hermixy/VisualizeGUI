@@ -349,7 +349,7 @@ def plotPortAddressUpdate():
 
 plotPortTimer = QtCore.QTimer()
 plotPortTimer.timeout.connect(plotPortAddressUpdate)
-plotPortTimer.start(1000)
+plotPortTimer.start(plot.getZMQTimerFrequency())
 mw.statusBar()
 mw.show()
 

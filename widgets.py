@@ -22,7 +22,6 @@ class ZMQPlotWidget(QtGui.QWidget):
 
         # Frequency to update plot (ms)
         self.ZMQ_TIMER_FREQUENCY = self.ZMQ_FREQUENCY * 1000
-
         self.ZMQPlot = pg.PlotWidget()
         self.ZMQPlot.setXRange(self.ZMQ_LEFT_X, self.ZMQ_RIGHT_X - 1)
         self.layout.addWidget(self.ZMQPlot)
@@ -111,6 +110,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         self.position_TCPTopic.setValidator(QtGui.QIntValidator())
         self.positionButtonLayout = QtGui.QHBoxLayout()
         self.positionConnectButton = QtGui.QPushButton('Connect')
+        self.positionConnectButton.setStyleSheet('background-color: #3CB371')
         self.positionConnectButton.clicked.connect(self.position_saveButton)
         self.positionCancelButton = QtGui.QPushButton('Cancel')
         self.positionCancelButton.clicked.connect(self.position_cancelButton)
@@ -131,6 +131,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         self.parameter_TCPPort.setValidator(QtGui.QIntValidator())
         self.parameterButtonLayout = QtGui.QHBoxLayout()
         self.parameterConnectButton = QtGui.QPushButton('Save')
+        self.parameterConnectButton.setStyleSheet('background-color: #3CB371')
         self.parameterConnectButton.clicked.connect(self.parameter_saveButton)
         self.parameterCancelButton = QtGui.QPushButton('Cancel')
         self.parameterCancelButton.clicked.connect(self.parameter_cancelButton)
@@ -152,6 +153,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         self.plot_TCPTopic.setValidator(QtGui.QIntValidator())
         self.plotButtonLayout = QtGui.QHBoxLayout()
         self.plotConnectButton = QtGui.QPushButton('Connect')
+        self.plotConnectButton.setStyleSheet('background-color: #3CB371')
         self.plotConnectButton.clicked.connect(self.plot_saveButton)
         self.plotCancelButton = QtGui.QPushButton('Cancel')
         self.plotCancelButton.clicked.connect(self.plot_cancelButton)
