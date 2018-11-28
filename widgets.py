@@ -90,7 +90,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         self.popUpWidth = 195
         self.popUpHeight = 150
         self.setFixedSize(self.popUpWidth, self.popUpHeight)
-        
+
         self.setWindowTitle(windowTitle)
         self.position_address = ()
         self.parameter_address = ()

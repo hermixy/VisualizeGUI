@@ -7,6 +7,7 @@ import random
 import zmq
 import numpy as np
 import sys
+from threading import Thread
 
 # Pub/sub
 position_address = "tcp://192.168.1.125:6011"
@@ -24,16 +25,28 @@ def positionUpdate():
     currentPosition.setText(currentPositionValue)
 
 def moveButtonPressed():
-    global parameter_socket
-    parameter_socket.send("move 1 2 3")
-    result = parameter_socket.recv()
-    print("Move response is " + result)
+    def threadMoveButtonPressed():
+        global parameter_socket
+        try:
+            parameter_socket.send("move 1 2 3")
+            result = parameter_socket.recv()
+            print("Move response is " + result)
+        except zmq.ZMQError:
+            # No data arrived
+            pass
+    Thread(target=threadMoveButtonPressed, args=()).start()
 
 def homeButtonPressed():
-    global parameter_socket
-    parameter_socket.send("home")
-    result = parameter_socket.recv()
-    print("Home response is " + result)
+    def threadHomeButtonPressed():
+        global parameter_socket
+        try:
+            parameter_socket.send("home")
+            result = parameter_socket.recv()
+            print("Home response is " + result)
+        except zmq.ZMQError:
+            # No data arrived
+            pass
+    Thread(target=threadHomeButtonPressed, args=()).start()
 
 def addPresetSettings():
     name = str(presetName.text())
