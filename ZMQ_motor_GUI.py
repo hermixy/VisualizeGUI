@@ -21,22 +21,9 @@ parameter_address = "tcp://192.168.1.125:6010"
 old_parameter_address = parameter_address
 
 # =====================================================================
-# Update timer functions
-# =====================================================================
-def positionUpdate():
-    global currentPositionValue
-    global position_socket
-    while True:
-        try:
-            topic, currentPositionValue = position_socket.recv(zmq.NOBLOCK).split()
-            currentPosition.setText(currentPositionValue)
-        except:
-            pass
-        time.sleep(.05)
-
-# =====================================================================
 # Button action functions
 # =====================================================================
+# Move rotational controller with selected values
 def moveButton():
     def threadMoveButton():
         global parameter_socket
@@ -56,6 +43,7 @@ def moveButton():
             pass
     Thread(target=threadMoveButton, args=()).start()
 
+# Resets rotational controller to default
 def homeButton():
     def threadHomeButton():
         global parameter_socket
@@ -68,6 +56,7 @@ def homeButton():
             pass
     Thread(target=threadHomeButton, args=()).start()
 
+# Save current field values into a saved preset
 def addPresetSettingsButton():
     name = str(presetName.text())
     v = str(velocity.text())
@@ -88,14 +77,38 @@ def addPresetSettingsButton():
     presets.setCurrentIndex(index)
     presetName.clear()
 
-# Update fields with choosen preset setting
-def updatePresetSettings():
+# Change position, parameters, and plot IP/Port settings (TCP Address, Port, Topic)
+def changeIPPortSettingsButton():
+    global portAddress
+    global statusBar
+    
+    statusBar.clearMessage()
+    portAddress = PortSettingPopUpWidget("IP/Port Settings")
+
+# =====================================================================
+# Update timer functions
+# =====================================================================
+# Current position update
+def positionUpdate():
+    global currentPositionValue
+    global position_socket
+    while True:
+        try:
+            topic, currentPositionValue = position_socket.recv(zmq.NOBLOCK).split()
+            currentPosition.setText(currentPositionValue)
+        except:
+            pass
+        time.sleep(.05)
+
+# Update fields with selected preset setting
+def presetSettingsUpdate():
     name = str(presets.currentText()) 
     position.setText(presetTable[name]["position"])
     velocity.setText(presetTable[name]["velocity"])
     acceleration.setText(presetTable[name]["acceleration"])
 
-def updateParameters(velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax):
+# Update the velocity, acceleration, and position min/max range (low,high) of input
+def parametersUpdate(velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax):
     global position
     global velocity
     global acceleration
@@ -106,16 +119,7 @@ def updateParameters(velocityMin, velocityMax, accelerationMin, accelerationMax,
     velocity.setValidator(QtGui.QIntValidator(int(velocityMin), int(velocityMax)))
     acceleration.setValidator(QtGui.QIntValidator(int(accelerationMin), int(accelerationMax)))
 
-def closeProgram():
-    exit(1)
-
-def changeIPPortSettings():
-    global portAddress
-    global statusBar
-    
-    statusBar.clearMessage()
-    portAddress = PortSettingPopUpWidget("IP/Port Settings")
-
+# Initialize position and parameter ZMQ connections
 def initZMQHandshake():
     global velocityMin
     global velocityMax
@@ -149,29 +153,31 @@ def initZMQHandshake():
 
     print(parameter_information)
     velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units = parameter_information
-    
+   
+# =====================================================================
+# Main GUI Application
+# =====================================================================
 # Create main application window
 app = QtGui.QApplication([])
 app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
 mw.setWindowTitle('ZMQ Motor GUI')
-initZMQHandshake()
 statusBar = QtGui.QStatusBar()
 mw.setStatusBar(statusBar)
+
+initZMQHandshake()
 plot = ZMQPlotWidget()
 plot.start()
 
-
 # Create and set widget layout
 cw = QtGui.QWidget()
-mainLayout = QtGui.QHBoxLayout()
+ml = QtGui.QHBoxLayout()
 l = QtGui.QFormLayout()
-mainLayout.addLayout(l)
-mainLayout.addLayout(plot.getZMQLayout())
+ml.addLayout(l)
+ml.addLayout(plot.getZMQLayout())
 mw.setCentralWidget(cw)
-cw.setLayout(mainLayout)
+cw.setLayout(ml)
 statusBar.setSizeGripEnabled(False)
-#mw.setFixedSize(350, 275)
 mw.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
 mw.setFixedSize(800,300)
 
@@ -205,7 +211,7 @@ fm.addAction(addPresetAction)
 
 # GUI elements
 portSettings = QtGui.QPushButton('IP/Port Settings')
-portSettings.clicked.connect(changeIPPortSettings)
+portSettings.clicked.connect(changeIPPortSettingsButton)
 
 position = QtGui.QLineEdit()
 position.setValidator(QtGui.QIntValidator(int(positionMin), int(positionMax)))
@@ -233,7 +239,7 @@ if homeFlag == 'false':
 
 presetTable = {}
 presets = QtGui.QComboBox()
-presets.activated.connect(updatePresetSettings)
+presets.activated.connect(presetSettingsUpdate)
 presetName = QtGui.QLineEdit()
 presetName.setFixedWidth(80)
 presetName.setPlaceholderText("Preset name")
@@ -328,7 +334,7 @@ def parameterPortAddressUpdate():
                 parameter_socket.send('info?')
                 parameter_information = [x.strip() for x in parameter_socket.recv().split(',')]
                 velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units = parameter_information
-                updateParameters(velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax)
+                parametersUpdate(velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax)
 
                 statusBar.showMessage('Successfully connected to ' + parameter_address, 8000)
                 portAddress.setParameterAddress("()")
