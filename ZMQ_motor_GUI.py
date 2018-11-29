@@ -8,6 +8,8 @@ import zmq
 import numpy as np
 import sys
 from threading import Thread
+import threading
+import time
 
 # Pub/sub
 position_address = "tcp://192.168.1.125:6011"
@@ -18,26 +20,44 @@ old_position_address = position_address
 parameter_address = "tcp://192.168.1.125:6010"
 old_parameter_address = parameter_address
 
+# =====================================================================
+# Update timer functions
+# =====================================================================
 def positionUpdate():
     global currentPositionValue
     global position_socket
-    topic, currentPositionValue = position_socket.recv().split()
-    currentPosition.setText(currentPositionValue)
+    while True:
+        try:
+            topic, currentPositionValue = position_socket.recv(zmq.NOBLOCK).split()
+            currentPosition.setText(currentPositionValue)
+        except:
+            pass
+        time.sleep(.05)
 
-def moveButtonPressed():
-    def threadMoveButtonPressed():
+# =====================================================================
+# Button action functions
+# =====================================================================
+def moveButton():
+    def threadMoveButton():
         global parameter_socket
         try:
-            parameter_socket.send("move 1 2 3")
-            result = parameter_socket.recv()
-            print("Move response is " + result)
+            v = str(velocity.text())
+            a = str(acceleration.text())
+            p = str(position.text())
+            if p and v and a:
+                command = "move {} {} {}".format(v,a,p)
+                parameter_socket.send(command)
+                result = parameter_socket.recv()
+                print("Move response is " + result)
+            else:
+                pass
         except zmq.ZMQError:
             # No data arrived
             pass
-    Thread(target=threadMoveButtonPressed, args=()).start()
+    Thread(target=threadMoveButton, args=()).start()
 
-def homeButtonPressed():
-    def threadHomeButtonPressed():
+def homeButton():
+    def threadHomeButton():
         global parameter_socket
         try:
             parameter_socket.send("home")
@@ -46,13 +66,13 @@ def homeButtonPressed():
         except zmq.ZMQError:
             # No data arrived
             pass
-    Thread(target=threadHomeButtonPressed, args=()).start()
+    Thread(target=threadHomeButton, args=()).start()
 
-def addPresetSettings():
+def addPresetSettingsButton():
     name = str(presetName.text())
-    p = str(position.text())
     v = str(velocity.text())
     a = str(acceleration.text())
+    p = str(position.text())
     if not name:
         return
     if not p or not v or not a:
@@ -141,6 +161,7 @@ mw.setStatusBar(statusBar)
 plot = ZMQPlotWidget()
 plot.start()
 
+
 # Create and set widget layout
 cw = QtGui.QWidget()
 mainLayout = QtGui.QHBoxLayout()
@@ -167,19 +188,19 @@ fm.addAction(exitAction)
 moveAction = QtGui.QAction('Move', mw)
 moveAction.setShortcut('Ctrl+M')
 moveAction.setStatusTip('Move')
-moveAction.triggered.connect(moveButtonPressed)
+moveAction.triggered.connect(moveButton)
 fm.addAction(moveAction)
 
 homeAction = QtGui.QAction('Home', mw)
 homeAction.setShortcut('Ctrl+H')
 homeAction.setStatusTip('Home')
-homeAction.triggered.connect(homeButtonPressed)
+homeAction.triggered.connect(homeButton)
 fm.addAction(homeAction)
 
 addPresetAction = QtGui.QAction('Add Preset', mw)
 addPresetAction.setShortcut('Ctrl+A')
 addPresetAction.setStatusTip('Save current values into a preset setting')
-addPresetAction.triggered.connect(addPresetSettings)
+addPresetAction.triggered.connect(addPresetSettingsButton)
 fm.addAction(addPresetAction)
 
 # GUI elements
@@ -201,14 +222,14 @@ acceleration.setAlignment(QtCore.Qt.AlignLeft)
 currentPosition = QtGui.QLabel()
 currentPosition.setText(currentPositionValue)
 
-moveButton = QtGui.QPushButton('Move')
-moveButton.clicked.connect(moveButtonPressed)
+move = QtGui.QPushButton('Move')
+move.clicked.connect(moveButton)
 
-homeButton = QtGui.QPushButton('Home')
-homeButton.clicked.connect(homeButtonPressed)
+home = QtGui.QPushButton('Home')
+home.clicked.connect(homeButton)
 
 if homeFlag == 'false':
-    homeButton.setEnabled(False)
+    home.setEnabled(False)
 
 presetTable = {}
 presets = QtGui.QComboBox()
@@ -217,7 +238,7 @@ presetName = QtGui.QLineEdit()
 presetName.setFixedWidth(80)
 presetName.setPlaceholderText("Preset name")
 presetButton = QtGui.QPushButton('Add Preset')
-presetButton.clicked.connect(addPresetSettings)
+presetButton.clicked.connect(addPresetSettingsButton)
 presetLayout = QtGui.QHBoxLayout()
 presetLayout.addWidget(presets)
 presetLayout.addWidget(presetName)
@@ -225,27 +246,18 @@ presetLayout.addWidget(presetButton)
 
 # Layout
 l.addRow(portSettings)
-l.addRow("Position (deg)", position)
 l.addRow("Velocity (deg/s)", velocity)
 l.addRow("Acceleration (deg/s^2)", acceleration)
+l.addRow("Position (deg)", position)
 l.addRow("Current Position", currentPosition)
-l.addRow(moveButton)
-l.addRow(homeButton)
+l.addRow(move)
+l.addRow(home)
 l.addRow("Presets", presetLayout)
 
-'''
-# Shortcuts
-closeProgramShortcut = QtGui.QShortcut(QtGui.QKeySequence("Ctrl+Q"), mw)
-closeProgramShortcut.activated.connect(closeProgram)
-homeButtonShortcut = QtGui.QShortcut(QtGui.QKeySequence("Ctrl+H"), mw)
-homeButtonShortcut.activated.connect(homeButtonPressed)
-moveButtonShortcut = QtGui.QShortcut(QtGui.QKeySequence("Ctrl+M"), mw)
-moveButtonShortcut.activated.connect(moveButtonPressed)
-'''
 # Internal timers
-positionTimer = QtCore.QTimer()
-positionTimer.timeout.connect(positionUpdate)
-positionTimer.start(1000)
+positionUpdateThread = Thread(target=positionUpdate, args=())
+positionUpdateThread.setDaemon(True)
+positionUpdateThread.start()
 
 def positionPortAddressUpdate():
     global portAddress
