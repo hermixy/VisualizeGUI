@@ -109,14 +109,126 @@ def positionUpdate():
 def positionPlotUpdate():
     global currentPositionValue
     global motorPlot
-
+    frequency = motorPlot.getRotationalControllerFrequency()
     while True:
         try:
             motorPlot.plotUpdater(currentPositionValue)
         except:
             print('error')
             pass
-        time.sleep(motorPlot.getRotationalControllerFrequency())
+        time.sleep(frequency)
+
+def positionPortAddressUpdate():
+    global portAddress
+    global position_address
+    global position_context
+    global position_topic
+    global position_socket
+    global old_position_address
+    global statusBar
+    while True:
+        try:
+            raw_position_address = portAddress.getPositionAddress()
+            # Already verified working address
+            if raw_position_address and raw_position_address != '()':
+                address, port, topic = raw_position_address
+                position_address = "tcp://" + address + ":" + port
+                # Different address from current settings
+                if old_position_address != position_address:
+                    old_position_address = position_address
+                    position_topic = topic
+                    position_context = zmq.Context()
+                    position_socket = position_context.socket(zmq.SUB)
+                    position_socket.connect(position_address)
+                    position_socket.setsockopt(zmq.SUBSCRIBE, position_topic)
+                    statusBar.showMessage('Successfully connected to ' + position_address, 8000)
+                    portAddress.setPositionAddress("()")
+                elif old_position_address == position_address:
+                    statusBar.showMessage('Already connected to ' + position_address, 8000)
+            elif not raw_position_address and type(raw_position_address) is bool: 
+                portAddress.setPositionAddress("()")
+                statusBar.showMessage('Invalid position IP/Port settings!', 8000) 
+            else:
+                pass
+        except NameError:
+            pass
+        time.sleep(1)
+
+def parameterPortAddressUpdate():
+    global portAddress
+    global parameter_address
+    global parameter_context
+    global parameter_socket
+    global old_parameter_address
+    global statusBar
+    global velocityMin
+    global velocityMax
+    global accelerationMin
+    global accelerationMax
+    global positionMin
+    global positionMax
+    global homeFlag
+    global units
+    
+    while True:
+        try:
+            raw_parameter_address = portAddress.getParameterAddress()
+            # Already verified working address
+            if raw_parameter_address and raw_parameter_address != '()':
+                address, port = raw_parameter_address
+                parameter_address = "tcp://" + address + ":" + port
+                # Different address from current settings
+                if old_parameter_address != parameter_address:
+                    old_parameter_address = parameter_address
+                    parameter_context = zmq.Context()
+                    parameter_socket = parameter_context.socket(zmq.REQ)
+                    parameter_socket.connect(parameter_address)
+                    parameter_socket.send('info?')
+                    parameter_information = [x.strip() for x in parameter_socket.recv().split(',')]
+                    velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units = parameter_information
+                    parametersUpdate(velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax)
+
+                    statusBar.showMessage('Successfully connected to ' + parameter_address, 8000)
+                    portAddress.setParameterAddress("()")
+                elif old_parameter_address == parameter_address:
+                    statusBar.showMessage('Already connected to ' + parameter_address, 8000)
+
+            elif not raw_parameter_address and type(raw_parameter_address) is bool: 
+                portAddress.setParameterAddress("()")
+                statusBar.showMessage('Invalid parameter IP/Port settings!', 8000) 
+            else:
+                pass
+        except NameError:
+            pass
+        time.sleep(1)
+
+def plotPortAddressUpdate():
+    global portAddress
+    global plot
+    global statusBar
+
+    while True:
+        try:
+            raw_plot_address = portAddress.getPlotAddress()
+            # Already verified working address
+            if raw_plot_address and raw_plot_address != '()':
+                address, port, topic = raw_plot_address
+                plot_address = "tcp://" + address + ":" + port
+                # Different address from current settings
+                if plot.getZMQPlotAddress() != plot_address:
+                    plot.updateZMQPlotAddress(plot_address, topic)
+                    statusBar.showMessage('Successfully connected to ' + plot_address, 8000)
+                    portAddress.setPlotAddress("()")
+                elif plot.getZMQPlotAddress() == plot_address:
+                    statusBar.showMessage('Already connected to ' + plot_address, 8000)
+            elif not raw_plot_address and type(raw_plot_address) is bool: 
+                portAddress.setPlotAddress("()")
+                statusBar.showMessage('Invalid plot IP/Port settings!', 8000) 
+            else:
+                pass
+        except NameError:
+            pass
+        time.sleep(plot.getZMQTimerFrequency())
 
 # Update fields with selected preset setting
 def presetSettingsUpdate():
@@ -291,122 +403,13 @@ plotPositionUpdateThread = Thread(target=positionPlotUpdate, args=())
 plotPositionUpdateThread.setDaemon(True)
 plotPositionUpdateThread.start()
 
-def positionPortAddressUpdate():
-    global portAddress
-    global position_address
-    global position_context
-    global position_topic
-    global position_socket
-    global old_position_address
-    global statusBar
-    try:
-        raw_position_address = portAddress.getPositionAddress()
-        # Already verified working address
-        if raw_position_address and raw_position_address != '()':
-            address, port, topic = raw_position_address
-            position_address = "tcp://" + address + ":" + port
-            # Different address from current settings
-            if old_position_address != position_address:
-                old_position_address = position_address
-                position_topic = topic
-                position_context = zmq.Context()
-                position_socket = position_context.socket(zmq.SUB)
-                position_socket.connect(position_address)
-                position_socket.setsockopt(zmq.SUBSCRIBE, position_topic)
-                statusBar.showMessage('Successfully connected to ' + position_address, 8000)
-                portAddress.setPositionAddress("()")
-            elif old_position_address == position_address:
-                statusBar.showMessage('Already connected to ' + position_address, 8000)
-        elif not raw_position_address and type(raw_position_address) is bool: 
-            portAddress.setPositionAddress("()")
-            statusBar.showMessage('Invalid position IP/Port settings!', 8000) 
-        else:
-            pass
-    except NameError:
-        pass
+positionPortAddressUpdateThread = Thread(target=positionPortAddressUpdate, args=())
+positionPortAddressUpdateThread.setDaemon(True)
+positionPortAddressUpdateThread.start()
 
-positionPortTimer = QtCore.QTimer()
-positionPortTimer.timeout.connect(positionPortAddressUpdate)
-positionPortTimer.start(1000)
-
-def parameterPortAddressUpdate():
-    global portAddress
-    global parameter_address
-    global parameter_context
-    global parameter_socket
-    global old_parameter_address
-    global statusBar
-    global velocityMin
-    global velocityMax
-    global accelerationMin
-    global accelerationMax
-    global positionMin
-    global positionMax
-    global homeFlag
-    global units
-
-    try:
-        raw_parameter_address = portAddress.getParameterAddress()
-        # Already verified working address
-        if raw_parameter_address and raw_parameter_address != '()':
-            address, port = raw_parameter_address
-            parameter_address = "tcp://" + address + ":" + port
-            # Different address from current settings
-            if old_parameter_address != parameter_address:
-                old_parameter_address = parameter_address
-                parameter_context = zmq.Context()
-                parameter_socket = parameter_context.socket(zmq.REQ)
-                parameter_socket.connect(parameter_address)
-                parameter_socket.send('info?')
-                parameter_information = [x.strip() for x in parameter_socket.recv().split(',')]
-                velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units = parameter_information
-                parametersUpdate(velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax)
-
-                statusBar.showMessage('Successfully connected to ' + parameter_address, 8000)
-                portAddress.setParameterAddress("()")
-            elif old_parameter_address == parameter_address:
-                statusBar.showMessage('Already connected to ' + parameter_address, 8000)
-
-        elif not raw_parameter_address and type(raw_parameter_address) is bool: 
-            portAddress.setParameterAddress("()")
-            statusBar.showMessage('Invalid parameter IP/Port settings!', 8000) 
-        else:
-            pass
-    except NameError:
-        pass
-
-parameterPortTimer = QtCore.QTimer()
-parameterPortTimer.timeout.connect(parameterPortAddressUpdate)
-parameterPortTimer.start(1000)
-
-def plotPortAddressUpdate():
-    global portAddress
-    global plot
-    global statusBar
-    try:
-        raw_plot_address = portAddress.getPlotAddress()
-        # Already verified working address
-        if raw_plot_address and raw_plot_address != '()':
-            address, port, topic = raw_plot_address
-            plot_address = "tcp://" + address + ":" + port
-            # Different address from current settings
-            if plot.getZMQPlotAddress() != plot_address:
-                plot.updateZMQPlotAddress(plot_address, topic)
-                statusBar.showMessage('Successfully connected to ' + plot_address, 8000)
-                portAddress.setPlotAddress("()")
-            elif plot.getZMQPlotAddress() == plot_address:
-                statusBar.showMessage('Already connected to ' + plot_address, 8000)
-        elif not raw_plot_address and type(raw_plot_address) is bool: 
-            portAddress.setPlotAddress("()")
-            statusBar.showMessage('Invalid plot IP/Port settings!', 8000) 
-        else:
-            pass
-    except NameError:
-        pass
-
-plotPortTimer = QtCore.QTimer()
-plotPortTimer.timeout.connect(plotPortAddressUpdate)
-plotPortTimer.start(plot.getZMQTimerFrequency())
+parameterPortAddressUpdateThread = Thread(target=parameterPortAddressUpdate, args=())
+parameterPortAddressUpdateThread.setDaemon(True)
+parameterPortAddressUpdateThread.start()
 
 mw.statusBar()
 mw.show()
