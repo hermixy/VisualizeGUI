@@ -46,9 +46,6 @@ class ZMQPlotWidget(QtGui.QWidget):
         self.ZMQSocket.connect(self.ZMQ_TCP_Port)
         self.ZMQSocket.setsockopt(zmq.SUBSCRIBE, self.ZMQ_Topic)
 
-        self.ZMQPlotTimer = QtCore.QTimer()
-        self.ZMQPlotTimer.timeout.connect(self.ZMQPlotUpdater)
-    
     def updateZMQPlotAddress(self, address, topic):
         self.ZMQ_TCP_Port = address 
         self.ZMQ_Topic = topic
@@ -79,9 +76,54 @@ class ZMQPlotWidget(QtGui.QWidget):
         return self.ZMQ_TIMER_FREQUENCY
 
     def start(self):
+        self.ZMQPlotTimer = QtCore.QTimer()
+        self.ZMQPlotTimer.timeout.connect(self.ZMQPlotUpdater)
         self.ZMQPlotTimer.start(self.getZMQTimerFrequency())
           
     def getZMQLayout(self):
+        return self.layout
+
+class RotationalControllerPlotWidget(QtGui.QWidget):
+    def __init__(self, parent=None):
+        super(RotationalControllerPlotWidget, self).__init__(parent)
+
+        self.layout = QtGui.QGridLayout()
+
+        # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 1
+        self.LEFT_X = -10
+        self.RIGHT_X = 1
+        
+        # Desired Frequency (Hz) = 1 / self.FREQUENCY
+        self.FREQUENCY = .05
+
+        # Frequency to update plot (ms)
+        self.TIMER_FREQUENCY = self.FREQUENCY * 1000
+        self.plot = pg.PlotWidget()
+        self.plot.setXRange(self.LEFT_X, self.RIGHT_X - 1)
+        self.layout.addWidget(self.plot)
+        self.plot.setTitle('Rotational Controller Position')
+        self.plot.setLabel('left', 'Value')
+        self.plot.setLabel('bottom', 'Time (s)')
+
+        self.plotter = self.plot.plot()
+        
+        self.X_Axis = np.arange(self.LEFT_X, self.RIGHT_X, self.FREQUENCY)
+        self.buffer = (abs(self.LEFT_X) + abs(self.RIGHT_X))/self.FREQUENCY
+        self.data = [] 
+        
+    def plotUpdater(self, data):
+        self.dataPoint = data 
+
+        if len(self.data) == self.buffer:
+            self.data.pop(0)
+        
+        self.data.append(float(self.dataPoint))
+        self.plotter.setData(self.X_Axis[len(self.X_Axis) - len(self.data):], self.data)
+    
+    def getRotationalControllerFrequency(self):
+        return self.FREQUENCY
+
+    def getRotationalControllerLayout(self):
         return self.layout
 
 class PortSettingPopUpWidget(QtGui.QWidget):
@@ -308,3 +350,24 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         else:
             self.plot_address = (False)
 
+'''
+class VideoDisplayWidget(QtGui.QWidget):
+    def __init__(self, parent=None):
+        super(VideoDisplayWidget, self).__init__(parent)
+
+        self.capture = None
+        self.videoFileName = None
+        self.isVideoFileLoaded = False
+
+        self.layout = QtGui.QFormLayout(self)
+        self.startButton = QtGui.QPushButton('Start')
+        self.startButton.clicked.connect(self.startCapture)
+        self.startButton.setFixedWidth(50)
+        self.pauseButton = QtGui.QPushButton('Pause')
+        self.pauseButton.clicked.connect(self.pauseCapture)
+        self.pauseButton.setFixedWidth(50)
+        self.layout.addRow(self.startButton, self.pauseButton)
+
+        self.setLayout(self.layout)
+
+'''

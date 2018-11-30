@@ -2,6 +2,7 @@ from PyQt4 import QtCore, QtGui
 from PyQt4.QtGui import QSizePolicy
 from widgets import PortSettingPopUpWidget
 from widgets import ZMQPlotWidget 
+from widgets import RotationalControllerPlotWidget 
 import pyqtgraph as pg
 import random
 import zmq
@@ -23,6 +24,7 @@ old_parameter_address = parameter_address
 # =====================================================================
 # Button action functions
 # =====================================================================
+
 # Move rotational controller with selected values
 def moveButton():
     def threadMoveButton():
@@ -88,6 +90,7 @@ def changeIPPortSettingsButton():
 # =====================================================================
 # Update timer functions
 # =====================================================================
+
 # Current position update
 def positionUpdate():
     global currentPositionValue
@@ -95,10 +98,25 @@ def positionUpdate():
     while True:
         try:
             topic, currentPositionValue = position_socket.recv(zmq.NOBLOCK).split()
+            # Change to 0 since Rotational controller reports 0 as -0
+            if currentPositionValue == '-0.00':
+                currentPositionValue = '0.00'
             currentPosition.setText(currentPositionValue)
         except:
             pass
         time.sleep(.05)
+
+def positionPlotUpdate():
+    global currentPositionValue
+    global motorPlot
+
+    while True:
+        try:
+            motorPlot.plotUpdater(currentPositionValue)
+        except:
+            print('error')
+            pass
+        time.sleep(motorPlot.getRotationalControllerFrequency())
 
 # Update fields with selected preset setting
 def presetSettingsUpdate():
@@ -157,6 +175,7 @@ def initZMQHandshake():
 # =====================================================================
 # Main GUI Application
 # =====================================================================
+
 # Create main application window
 app = QtGui.QApplication([])
 app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
@@ -169,17 +188,20 @@ initZMQHandshake()
 plot = ZMQPlotWidget()
 plot.start()
 
+motorPlot = RotationalControllerPlotWidget()
+
 # Create and set widget layout
 cw = QtGui.QWidget()
 ml = QtGui.QHBoxLayout()
 l = QtGui.QFormLayout()
 ml.addLayout(l)
+ml.addLayout(motorPlot.getRotationalControllerLayout())
 ml.addLayout(plot.getZMQLayout())
 mw.setCentralWidget(cw)
 cw.setLayout(ml)
 statusBar.setSizeGripEnabled(False)
 mw.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
-mw.setFixedSize(800,300)
+#mw.setFixedSize(800,300)
 
 # Menubar/Toolbar
 mb = mw.menuBar()
@@ -264,6 +286,10 @@ l.addRow("Presets", presetLayout)
 positionUpdateThread = Thread(target=positionUpdate, args=())
 positionUpdateThread.setDaemon(True)
 positionUpdateThread.start()
+
+plotPositionUpdateThread = Thread(target=positionPlotUpdate, args=())
+plotPositionUpdateThread.setDaemon(True)
+plotPositionUpdateThread.start()
 
 def positionPortAddressUpdate():
     global portAddress
@@ -381,6 +407,7 @@ def plotPortAddressUpdate():
 plotPortTimer = QtCore.QTimer()
 plotPortTimer.timeout.connect(plotPortAddressUpdate)
 plotPortTimer.start(plot.getZMQTimerFrequency())
+
 mw.statusBar()
 mw.show()
 
