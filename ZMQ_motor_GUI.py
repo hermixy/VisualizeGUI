@@ -97,17 +97,21 @@ def positionUpdate():
     global currentPositionValue
     global position_socket
     global motorPlot
+    global oldCurrentPositionValue
+    frequency = motorPlot.getRotationalControllerFrequency()
     while True:
         try:
             topic, currentPositionValue = position_socket.recv(zmq.NOBLOCK).split()
-            # Change to 0 since Rotational controller reports 0 as -0
             if currentPositionValue == '-0.00':
                 currentPositionValue = '0.00'
+            oldCurrentPositionValue = currentPositionValue
+            # Change to 0 since Rotational controller reports 0 as -0
             currentPosition.setText(currentPositionValue)
             motorPlot.plotUpdater(currentPositionValue)
         except:
-            pass
-        time.sleep(.025)
+            currentPosition.setText(oldCurrentPositionValue)
+            motorPlot.plotUpdater(oldCurrentPositionValue)
+        time.sleep(frequency)
 
 def positionPortAddressUpdate():
     global portAddress
@@ -219,7 +223,7 @@ def plotPortAddressUpdate():
                 pass
         except NameError:
             pass
-        time.sleep(plot.getZMQTimerFrequency())
+        time.sleep(plot.getZMQFrequency())
 
 # Update fields with selected preset setting
 def presetSettingsUpdate():

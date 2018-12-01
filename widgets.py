@@ -14,17 +14,19 @@ class ZMQPlotWidget(QtGui.QWidget):
 
         self.layout = QtGui.QGridLayout()
 
-        # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 1
+        # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 0
         self.ZMQ_LEFT_X = -10
-        self.ZMQ_RIGHT_X = 1
+        self.ZMQ_RIGHT_X = 0
         
         # Desired Frequency (Hz) = 1 / self.ZMQ_FREQUENCY
-        self.ZMQ_FREQUENCY = .5
+        # USE FOR TIME.SLEEP (s)
+        self.ZMQ_FREQUENCY = .025
 
         # Frequency to update plot (ms)
+        # USE FOR TIMER.TIMER (ms)
         self.ZMQ_TIMER_FREQUENCY = self.ZMQ_FREQUENCY * 1000
         self.ZMQPlot = pg.PlotWidget()
-        self.ZMQPlot.setXRange(self.ZMQ_LEFT_X, self.ZMQ_RIGHT_X - 1)
+        self.ZMQPlot.setXRange(self.ZMQ_LEFT_X, self.ZMQ_RIGHT_X)
         self.layout.addWidget(self.ZMQPlot)
         self.ZMQPlot.setTitle('ZMQ Plot')
         self.ZMQPlot.setLabel('left', 'Value')
@@ -35,7 +37,7 @@ class ZMQPlotWidget(QtGui.QWidget):
         #self.ZMQPlotLegend.addItem(self.ZMQPlotter, 'A')
         
         self.ZMQ_X_Axis = np.arange(self.ZMQ_LEFT_X, self.ZMQ_RIGHT_X, self.ZMQ_FREQUENCY)
-        self.ZMQBuffer = (abs(self.ZMQ_LEFT_X) + abs(self.ZMQ_RIGHT_X))/self.ZMQ_FREQUENCY
+        self.ZMQBuffer = int((abs(self.ZMQ_LEFT_X) + abs(self.ZMQ_RIGHT_X))/self.ZMQ_FREQUENCY)
         self.ZMQData = [] 
         
         # Create ZMQ Plot Widget
@@ -46,6 +48,8 @@ class ZMQPlotWidget(QtGui.QWidget):
         self.ZMQSocket = self.ZMQContext.socket(zmq.SUB)
         self.ZMQSocket.connect(self.ZMQ_TCP_Port)
         self.ZMQSocket.setsockopt(zmq.SUBSCRIBE, self.ZMQ_Topic)
+        
+        self.oldZMQDataPoint = 0
 
     def updateZMQPlotAddress(self, address, topic):
         self.ZMQ_TCP_Port = address 
@@ -59,22 +63,29 @@ class ZMQPlotWidget(QtGui.QWidget):
         # Receives (topic, data)
         try:
             self.topic, self.ZMQDataPoint = self.ZMQSocket.recv(zmq.NOBLOCK).split()
+            self.oldZMQDataPoint = self.ZMQDataPoint
         except zmq.ZMQError, e:
             # No data arrived
             if e.errno == zmq.EAGAIN:
-                return
-        if len(self.ZMQData) == self.ZMQBuffer:
+                self.ZMQDataPoint = self.oldZMQDataPoint
+
+        if len(self.ZMQData) >= self.ZMQBuffer:
             self.ZMQData.pop(0)
         
         #self.ZMQData.append(random.randint(1,101))        
-        self.ZMQData.append(int(self.ZMQDataPoint))
+        self.ZMQData.append(float(self.ZMQDataPoint))
         self.ZMQPlotter.setData(self.ZMQ_X_Axis[len(self.ZMQ_X_Axis) - len(self.ZMQData):], self.ZMQData)
     
     def getZMQPlotAddress(self):
         return self.ZMQ_TCP_Port
 
+    # Version with QTimer (ms)
     def getZMQTimerFrequency(self):
         return self.ZMQ_TIMER_FREQUENCY
+
+    # Version with time.sleep (s) 
+    def getZMQFrequency(self):
+        return self.ZMQ_FREQUENCY
 
     def start(self):
         self.ZMQPlotTimer = QtCore.QTimer()
@@ -90,17 +101,20 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
 
         self.layout = QtGui.QGridLayout()
 
-        # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 1
+        # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 0
         self.LEFT_X = -10
-        self.RIGHT_X = 1
+        self.RIGHT_X = 0
         
         # Desired Frequency (Hz) = 1 / self.FREQUENCY
-        self.FREQUENCY = .05
+        # USE FOR TIME.SLEEP (s)
+        # FREQUENCY HAS TO BE SAME AS SERVER'S FREQUENCY
+        self.FREQUENCY = .025
 
         # Frequency to update plot (ms)
+        # USE FOR TIMER.TIMER (ms)
         self.TIMER_FREQUENCY = self.FREQUENCY * 1000
         self.plot = pg.PlotWidget()
-        self.plot.setXRange(self.LEFT_X, self.RIGHT_X - 1)
+        self.plot.setXRange(self.LEFT_X, self.RIGHT_X)
         self.layout.addWidget(self.plot)
         self.plot.setTitle('Rotational Controller Position')
         self.plot.setLabel('left', 'Value')
@@ -109,17 +123,15 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
         self.plotter = self.plot.plot()
         
         self.X_Axis = np.arange(self.LEFT_X, self.RIGHT_X, self.FREQUENCY)
-        self.buffer = (abs(self.LEFT_X) + abs(self.RIGHT_X))/self.FREQUENCY
+        self.buffer = int((abs(self.LEFT_X) + abs(self.RIGHT_X))/self.FREQUENCY)
         self.data = [] 
         
     def plotUpdater(self, data):
         self.dataPoint = data 
 
-        if len(self.data) == self.buffer:
+        if len(self.data) >= self.buffer:
             self.data.pop(0)
-         
         self.data.append(float(self.dataPoint))
-        print(len(self.data))
         self.plotter.setData(self.X_Axis[len(self.X_Axis) - len(self.data):], self.data)
     
     def getRotationalControllerFrequency(self):
