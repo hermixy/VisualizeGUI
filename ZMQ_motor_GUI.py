@@ -3,6 +3,7 @@ from PyQt4.QtGui import QSizePolicy
 from widgets import PortSettingPopUpWidget
 from widgets import ZMQPlotWidget 
 from widgets import RotationalControllerPlotWidget 
+from widgets import VideoDisplayWidget
 import pyqtgraph as pg
 import random
 import zmq
@@ -95,6 +96,7 @@ def changeIPPortSettingsButton():
 def positionUpdate():
     global currentPositionValue
     global position_socket
+    global motorPlot
     while True:
         try:
             topic, currentPositionValue = position_socket.recv(zmq.NOBLOCK).split()
@@ -102,21 +104,10 @@ def positionUpdate():
             if currentPositionValue == '-0.00':
                 currentPositionValue = '0.00'
             currentPosition.setText(currentPositionValue)
-        except:
-            pass
-        time.sleep(.05)
-
-def positionPlotUpdate():
-    global currentPositionValue
-    global motorPlot
-    frequency = motorPlot.getRotationalControllerFrequency()
-    while True:
-        try:
             motorPlot.plotUpdater(currentPositionValue)
         except:
-            print('error')
             pass
-        time.sleep(frequency)
+        time.sleep(.025)
 
 def positionPortAddressUpdate():
     global portAddress
@@ -293,6 +284,7 @@ app = QtGui.QApplication([])
 app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
 mw.setWindowTitle('ZMQ Motor GUI')
+
 statusBar = QtGui.QStatusBar()
 mw.setStatusBar(statusBar)
 
@@ -301,6 +293,7 @@ plot = ZMQPlotWidget()
 plot.start()
 
 motorPlot = RotationalControllerPlotWidget()
+videoDisplay = VideoDisplayWidget()
 
 # Create and set widget layout
 cw = QtGui.QWidget()
@@ -309,6 +302,7 @@ l = QtGui.QFormLayout()
 ml.addLayout(l)
 ml.addLayout(motorPlot.getRotationalControllerLayout())
 ml.addLayout(plot.getZMQLayout())
+ml.addLayout(videoDisplay.getVideoDisplayLayout())
 mw.setCentralWidget(cw)
 cw.setLayout(ml)
 statusBar.setSizeGripEnabled(False)
@@ -398,10 +392,6 @@ l.addRow("Presets", presetLayout)
 positionUpdateThread = Thread(target=positionUpdate, args=())
 positionUpdateThread.setDaemon(True)
 positionUpdateThread.start()
-
-plotPositionUpdateThread = Thread(target=positionPlotUpdate, args=())
-plotPositionUpdateThread.setDaemon(True)
-plotPositionUpdateThread.start()
 
 positionPortAddressUpdateThread = Thread(target=positionPortAddressUpdate, args=())
 positionPortAddressUpdateThread.setDaemon(True)

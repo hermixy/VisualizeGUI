@@ -6,6 +6,7 @@ import numpy as np
 import sys
 import time
 from threading import Thread
+import cv2
 
 class ZMQPlotWidget(QtGui.QWidget):
     def __init__(self, parent=None):
@@ -116,8 +117,9 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
 
         if len(self.data) == self.buffer:
             self.data.pop(0)
-        
+         
         self.data.append(float(self.dataPoint))
+        print(len(self.data))
         self.plotter.setData(self.X_Axis[len(self.X_Axis) - len(self.data):], self.data)
     
     def getRotationalControllerFrequency(self):
@@ -350,7 +352,6 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         else:
             self.plot_address = (False)
 
-'''
 class VideoDisplayWidget(QtGui.QWidget):
     def __init__(self, parent=None):
         super(VideoDisplayWidget, self).__init__(parent)
@@ -359,15 +360,50 @@ class VideoDisplayWidget(QtGui.QWidget):
         self.videoFileName = None
         self.isVideoFileLoaded = False
 
-        self.layout = QtGui.QFormLayout(self)
+        self.layout = QtGui.QFormLayout()
+        self.loadButton = QtGui.QPushButton('Select Video')
+        self.loadButton.clicked.connect(self.loadVideoFile)
+        self.loadButton.setFixedWidth(50)
         self.startButton = QtGui.QPushButton('Start')
         self.startButton.clicked.connect(self.startCapture)
         self.startButton.setFixedWidth(50)
         self.pauseButton = QtGui.QPushButton('Pause')
         self.pauseButton.clicked.connect(self.pauseCapture)
         self.pauseButton.setFixedWidth(50)
-        self.layout.addRow(self.startButton, self.pauseButton)
 
-        self.setLayout(self.layout)
+        #self.layout.addRow(self.loadButton, self.startButton, self.pauseButton)
+        self.layout.addRow(self.loadButton)
+        self.layout.addRow(self.startButton)
+        self.layout.addRow(self.pauseButton)
 
-'''
+        self.videoFrame = QtGui.QLabel()
+        self.layout.addWidget(self.videoFrame)
+    def getVideoDisplayLayout(self):
+        return self.layout
+
+    def startCapture(self):
+        if not self.capture:
+            self.capture = cv2.VideoCapture(str(self.videoFileName))
+        else:
+            self.start()
+    def loadVideoFile(self):
+        try:
+            self.videoFileName = QtGui.QFileDialog.getOpenFileName(self, 'Select .h264 Video File')
+            self.isVideoFileLoaded = True
+        except:
+            print("Please select a .h264 file")
+    def nextFrameSlot(self):
+        status, frame = self.capture.read()
+        img = QtGui.QImage(frame, frame.shape[1], frame.shape[0], QtGui.QImage.Format_RGB888).rgbSwapped()
+        pix = QtGui.QPixmap.fromImage(img)
+        self.videoFrame.setPixmap(pix)
+
+    def start(self):
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(self.nextFrameSlot)
+        self.timer.start(.1)
+
+    def pauseCapture(self):
+        self.timer.stop()
+
+
