@@ -127,15 +127,18 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
         self.data = [] 
         
     def plotUpdater(self, data):
-        self.dataPoint = data 
+        self.dataPoint = float(data)
 
         if len(self.data) >= self.buffer:
             self.data.pop(0)
-        self.data.append(float(self.dataPoint))
+        self.data.append(self.dataPoint)
         self.plotter.setData(self.X_Axis[len(self.X_Axis) - len(self.data):], self.data)
     
     def getRotationalControllerFrequency(self):
         return self.FREQUENCY
+    
+    def getRotationalControllerTimerFrequency(self):
+        return self.TIMER_FREQUENCY
 
     def getRotationalControllerLayout(self):
         return self.layout
