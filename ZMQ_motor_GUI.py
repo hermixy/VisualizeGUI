@@ -10,7 +10,6 @@ import zmq
 import numpy as np
 import sys
 from threading import Thread
-import threading
 import time
 
 # Pub/sub
@@ -28,7 +27,7 @@ old_parameter_address = parameter_address
 
 # Move rotational controller with selected values
 def moveButton():
-    def threadMoveButton():
+    def moveButtonThread():
         global parameter_socket
         try:
             v = str(velocity.text())
@@ -44,11 +43,11 @@ def moveButton():
         except zmq.ZMQError:
             # No data arrived
             pass
-    Thread(target=threadMoveButton, args=()).start()
+    Thread(target=moveButtonThread, args=()).start()
 
 # Resets rotational controller to default
 def homeButton():
-    def threadHomeButton():
+    def homeButtonThread():
         global parameter_socket
         try:
             parameter_socket.send("home")
@@ -57,28 +56,30 @@ def homeButton():
         except zmq.ZMQError:
             # No data arrived
             pass
-    Thread(target=threadHomeButton, args=()).start()
+    Thread(target=homeButtonThread, args=()).start()
 
 # Save current field values into a saved preset
 def addPresetSettingsButton():
-    name = str(presetName.text())
-    v = str(velocity.text())
-    a = str(acceleration.text())
-    p = str(position.text())
-    if not name:
-        return
-    if not p or not v or not a:
-        return
-    if name not in presetTable:
-        presets.addItem(name)
-    presetTable[name] = {
-            "position": p,
-            "velocity": v,
-            "acceleration": a 
-            }
-    index = presets.findText(name)
-    presets.setCurrentIndex(index)
-    presetName.clear()
+    def addPresetSettingsButtonThread():
+        name = str(presetName.text())
+        v = str(velocity.text())
+        a = str(acceleration.text())
+        p = str(position.text())
+        if not name:
+            return
+        if not p or not v or not a:
+            return
+        if name not in presetTable:
+            presets.addItem(name)
+        presetTable[name] = {
+                "position": p,
+                "velocity": v,
+                "acceleration": a 
+                }
+        index = presets.findText(name)
+        presets.setCurrentIndex(index)
+        presetName.clear()
+    Thread(target=addPresetSettingsButtonThread, args=()).start()
 
 # Change position, parameters, and plot IP/Port settings (TCP Address, Port, Topic)
 def changeIPPortSettingsButton():
@@ -89,32 +90,37 @@ def changeIPPortSettingsButton():
     portAddress = PortSettingPopUpWidget("IP/Port Settings")
 
 # =====================================================================
-# Update timer functions
+# Update timer and thread functions
 # =====================================================================
 
 # Current position update
 def positionUpdate():
     global currentPositionValue
-    global position_socket
     global motorPlot
-    global oldCurrentPositionValue
-    try:
-        topic, currentPositionValue = position_socket.recv().split()
-        if currentPositionValue == '-0.00':
-            currentPositionValue = '0.00'
-        oldCurrentPositionValue = currentPositionValue
-        # Change to 0 since Rotational controller reports 0 as -0
-        currentPosition.setText(currentPositionValue)
-        motorPlot.plotUpdater(currentPositionValue)
-    except:
-        motorPlot.plotUpdater(oldCurrentPositionValue)
+
+    currentPosition.setText(currentPositionValue)
+    motorPlot.plotUpdater(currentPositionValue)
+
+# Reads motor socket for current position 
+def readPositionThread():
+    global position_socket
+    global currentPositionValue, oldCurrentPositionValue
+    global motorPlot
+    frequency = motorPlot.getRotationalControllerFrequency()
+    while True:
+        try:
+            topic, currentPositionValue = position_socket.recv().split()
+            # Change to 0 since Rotational controller reports 0 as -0
+            if currentPositionValue == '-0.00':
+                currentPositionValue = '0.00'
+            oldCurrentPositionValue = currentPositionValue
+        except:
+            currentPositionValue = oldCurrentPositionValue
+        time.sleep(frequency)
 
 def positionPortAddressUpdate():
     global portAddress
-    global position_address
-    global position_context
-    global position_topic
-    global position_socket
+    global position_address, position_context, position_topic, position_socket
     global old_position_address
     global statusBar
     try:
@@ -145,19 +151,10 @@ def positionPortAddressUpdate():
 
 def parameterPortAddressUpdate():
     global portAddress
-    global parameter_address
-    global parameter_context
-    global parameter_socket
+    global parameter_address, parameter_context, parameter_socket
+    global velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units
     global old_parameter_address
     global statusBar
-    global velocityMin
-    global velocityMax
-    global accelerationMin
-    global accelerationMax
-    global positionMin
-    global positionMax
-    global homeFlag
-    global units
     
     try:
         raw_parameter_address = portAddress.getParameterAddress()
@@ -236,24 +233,11 @@ def parametersUpdate(velocityMin, velocityMax, accelerationMin, accelerationMax,
 
 # Initialize position and parameter ZMQ connections
 def initZMQHandshake():
-    global velocityMin
-    global velocityMax
-    global accelerationMin
-    global accelerationMax
-    global positionMin
-    global positionMax
-    global homeFlag
-    global units
-
-    global position_socket
-    global position_address
-    global position_context
-
-    global parameter_socket
-    global parameter_address
-    global parameter_context
-
+    global velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units
+    global position_socket, position_address, position_context
+    global parameter_socket, parameter_address, parameter_context
     global currentPositionValue
+
     position_context = zmq.Context()
     position_socket = position_context.socket(zmq.SUB)
     position_socket.connect(position_address)
@@ -266,7 +250,6 @@ def initZMQHandshake():
     parameter_socket.send("info?")
     parameter_information = [x.strip() for x in parameter_socket.recv().split(',')]
 
-    print(parameter_information)
     velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units = parameter_information
    
 # =====================================================================
@@ -382,7 +365,10 @@ l.addRow(move)
 l.addRow(home)
 l.addRow("Presets", presetLayout)
 
-# Internal timers
+# Start internal timers and threads 
+positionUpdateThread = Thread(target=readPositionThread, args=())
+positionUpdateThread.daemon = True
+positionUpdateThread.start() 
 
 positionUpdateTimer = QtCore.QTimer()
 positionUpdateTimer.timeout.connect(positionUpdate)

@@ -20,4 +20,4 @@ while True:
    messagedata = random.randint(500,1000)
    print "%d %d" % (topic, messagedata)
    socket.send("%d %d" % (topic, messagedata))
-   time.sleep(.5)
+   time.sleep(.025)
