@@ -99,7 +99,7 @@ def positionUpdate():
     global motorPlot
     global oldCurrentPositionValue
     try:
-        topic, currentPositionValue = position_socket.recv(zmq.NOBLOCK).split()
+        topic, currentPositionValue = position_socket.recv().split()
         if currentPositionValue == '-0.00':
             currentPositionValue = '0.00'
         oldCurrentPositionValue = currentPositionValue

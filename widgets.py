@@ -62,7 +62,7 @@ class ZMQPlotWidget(QtGui.QWidget):
     def ZMQPlotUpdater(self):
         # Receives (topic, data)
         try:
-            self.topic, self.ZMQDataPoint = self.ZMQSocket.recv(zmq.NOBLOCK).split()
+            self.topic, self.ZMQDataPoint = self.ZMQSocket.recv().split()
             self.oldZMQDataPoint = self.ZMQDataPoint
         except zmq.ZMQError, e:
             # No data arrived
@@ -264,7 +264,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
             valid_flag = False
             while time.time() < time_end:
                 try:
-                    topic, data = socket.recv(zmq.NOBLOCK).split()
+                    topic, data = socket.recv().split()
                     self.position_address = (address, port, topic)
                     valid_flag = True
                     break
@@ -308,7 +308,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
             valid_flag = False
             while time.time() < time_end:
                 try:
-                    result = socket.recv(zmq.NOBLOCK).split(',')
+                    result = socket.recv().split(',')
                     print(result)
                     self.parameter_address = (address, port)
                     valid_flag = True
@@ -352,7 +352,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
             valid_flag = False
             while time.time() < time_end:
                 try:
-                    topic, data = socket.recv(zmq.NOBLOCK).split()
+                    topic, data = socket.recv().split()
                     self.plot_address = (address, port, topic)
                     valid_flag = True
                     break
