@@ -1,3 +1,9 @@
+'''
+Run servers: pubsub_server2.py for parameter/position changes (OPTIONAL)
+             reqrep_server1.py for initial ZMQ Plot (REQUIRED)
+             reqrep_server2.py for change ZMQ Plot ability (OPTIONAL)
+             server1.py for rotational controller (REQUIRED)
+'''
 from PyQt4 import QtCore, QtGui 
 from PyQt4.QtGui import QSizePolicy
 from widgets import PortSettingPopUpWidget
@@ -284,6 +290,9 @@ l = QtGui.QGridLayout()
 
 # Prevent window from being maximized
 mw.setFixedSize(cw.size())
+
+# Enable zoom in for selected box region
+pg.setConfigOption('leftButtonPan', False)
 
 ml.addLayout(l,0,0)
 ml.addWidget(plot.getZMQPlotWidget(),1,0)

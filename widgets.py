@@ -39,8 +39,6 @@ class ZMQPlotWidget(QtGui.QWidget):
         self.ZMQPlotter = self.ZMQPlot.plot()
         self.ZMQPlotter.setPen(32,201,151)
         
-        # Enable zoom in for selected box region
-        pg.setConfigOption('leftButtonPan', False)
         self.layout = QtGui.QGridLayout()
         self.layout.addWidget(self.ZMQPlot)
 
@@ -126,10 +124,8 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
         self.plot.setLabel('bottom', 'Time (s)')
 
         self.plotter = self.plot.plot()
-        self.plotter.setPen(243,229,245)
+        self.plotter.setPen(232,234,246)
 
-        # Enable zoom in for selected box region
-        pg.setConfigOption('leftButtonPan', False)
         self.layout = QtGui.QGridLayout()
         self.layout.addWidget(self.plot)
 
