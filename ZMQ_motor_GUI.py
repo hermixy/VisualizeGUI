@@ -276,8 +276,8 @@ statusBar.setSizeGripEnabled(False)
 initZMQHandshake()
 
 # Create plots
-plot = ZMQPlotWidget()
-plot.start()
+#plot = ZMQPlotWidget()
+#plot.start()
 motorPlot = RotationalControllerPlotWidget()
 
 # Create and set widget layout
@@ -289,14 +289,14 @@ mw.setCentralWidget(cw)
 l = QtGui.QGridLayout()
 
 # Prevent window from being maximized
-mw.setFixedSize(cw.size())
+#mw.setFixedSize(cw.size())
 
 # Enable zoom in for selected box region
 pg.setConfigOption('leftButtonPan', False)
 
 ml.addLayout(l,0,0)
-ml.addWidget(plot.getZMQPlotWidget(),1,0)
-ml.addWidget(motorPlot.getRotationalControllerPlotWidget(),0,1,2,1)
+#ml.addWidget(plot.getZMQPlotWidget(),1,0)
+ml.addWidget(motorPlot.getRotationalControllerPlotWidget(),0,1)
 mw.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
 
 # Menubar/Toolbar

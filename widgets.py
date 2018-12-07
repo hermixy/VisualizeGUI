@@ -118,6 +118,7 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
 
         # Create ZMQ Plot Widget 
         self.plot = pg.PlotWidget()
+        self.plot.setFixedSize(500,220)
         self.plot.setXRange(self.LEFT_X, self.RIGHT_X)
         self.plot.setTitle('Rotational Controller Position')
         self.plot.setLabel('left', 'Value')
@@ -234,7 +235,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
 
         self.tabs.addTab(self.positionTab, 'Position')
         self.tabs.addTab(self.parameterTab, 'Parameters')
-        self.tabs.addTab(self.plotTab, 'Plot')
+        #self.tabs.addTab(self.plotTab, 'Plot')
          
         self.setWindowModality(QtCore.Qt.ApplicationModal)
         self.show()
