@@ -3,7 +3,6 @@ from PyQt4.QtGui import QSizePolicy
 from widgets import PortSettingPopUpWidget
 from widgets import ZMQPlotWidget 
 from widgets import RotationalControllerPlotWidget 
-from widgets import VideoDisplayWidget
 import pyqtgraph as pg
 import random
 import zmq
@@ -262,29 +261,34 @@ app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
 mw.setWindowTitle('ZMQ Motor GUI')
 
+# Initialize statusbar
 statusBar = QtGui.QStatusBar()
 mw.setStatusBar(statusBar)
+statusBar.setSizeGripEnabled(False)
 
+# Establish ZMQ socket connections 
 initZMQHandshake()
+
+# Create plots
 plot = ZMQPlotWidget()
 plot.start()
-
 motorPlot = RotationalControllerPlotWidget()
-videoDisplay = VideoDisplayWidget()
 
 # Create and set widget layout
+# Main widget container
 cw = QtGui.QWidget()
-ml = QtGui.QHBoxLayout()
-l = QtGui.QFormLayout()
-ml.addLayout(l)
-ml.addLayout(motorPlot.getRotationalControllerLayout())
-ml.addLayout(plot.getZMQLayout())
-ml.addLayout(videoDisplay.getVideoDisplayLayout())
-mw.setCentralWidget(cw)
+ml = QtGui.QGridLayout()
 cw.setLayout(ml)
-statusBar.setSizeGripEnabled(False)
+mw.setCentralWidget(cw)
+l = QtGui.QGridLayout()
+
+# Prevent window from being maximized
+mw.setFixedSize(cw.size())
+
+ml.addLayout(l,0,0)
+ml.addWidget(plot.getZMQPlotWidget(),1,0)
+ml.addWidget(motorPlot.getRotationalControllerPlotWidget(),0,1,2,1)
 mw.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
-#mw.setFixedSize(800,300)
 
 # Menubar/Toolbar
 mb = mw.menuBar()
@@ -318,18 +322,26 @@ fm.addAction(addPresetAction)
 portSettings = QtGui.QPushButton('IP/Port Settings')
 portSettings.clicked.connect(changeIPPortSettingsButton)
 
-position = QtGui.QLineEdit()
-position.setValidator(QtGui.QIntValidator(int(positionMin), int(positionMax)))
-position.setAlignment(QtCore.Qt.AlignLeft)
-
+velocityLabel = QtGui.QLabel()
+velocityLabel.setText('Velocity (deg/s)')
 velocity = QtGui.QLineEdit()
 velocity.setValidator(QtGui.QIntValidator(int(velocityMin), int(velocityMax)))
 velocity.setAlignment(QtCore.Qt.AlignLeft)
 
+accelerationLabel = QtGui.QLabel()
+accelerationLabel.setText('Acceleration (deg/s^2)')
 acceleration = QtGui.QLineEdit()
 acceleration.setValidator(QtGui.QIntValidator(int(accelerationMin), int(accelerationMax)))
 acceleration.setAlignment(QtCore.Qt.AlignLeft)
 
+positionLabel = QtGui.QLabel()
+positionLabel.setText('Position (deg)')
+position = QtGui.QLineEdit()
+position.setValidator(QtGui.QIntValidator(int(positionMin), int(positionMax)))
+position.setAlignment(QtCore.Qt.AlignLeft)
+
+currentPositionLabel = QtGui.QLabel()
+currentPositionLabel.setText('Current Position')
 currentPosition = QtGui.QLabel()
 currentPosition.setText(currentPositionValue)
 
@@ -339,10 +351,13 @@ move.clicked.connect(moveButton)
 home = QtGui.QPushButton('Home')
 home.clicked.connect(homeButton)
 
+# Disable home button if unavailable
 if homeFlag == 'false':
     home.setEnabled(False)
 
 presetTable = {}
+presetLabel = QtGui.QLabel()
+presetLabel.setText('Presets')
 presets = QtGui.QComboBox()
 presets.activated.connect(presetSettingsUpdate)
 presetName = QtGui.QLineEdit()
@@ -356,14 +371,22 @@ presetLayout.addWidget(presetName)
 presetLayout.addWidget(presetButton)
 
 # Layout
-l.addRow(portSettings)
-l.addRow("Velocity (deg/s)", velocity)
-l.addRow("Acceleration (deg/s^2)", acceleration)
-l.addRow("Position (deg)", position)
-l.addRow("Current Position", currentPosition)
-l.addRow(move)
-l.addRow(home)
-l.addRow("Presets", presetLayout)
+l.addWidget(portSettings,0,0,1,4)
+l.addWidget(velocityLabel,1,0,1,2)
+l.addWidget(velocity,1,2,1,2)
+l.addWidget(accelerationLabel,2,0,1,2)
+l.addWidget(acceleration,2,2,1,2)
+l.addWidget(positionLabel,3,0,1,2)
+l.addWidget(position,3,2,1,2)
+l.addWidget(currentPositionLabel,4,0,1,2)
+
+l.addWidget(currentPosition,4,2,1,2)
+l.addWidget(move,5,0,1,4)
+l.addWidget(home,6,0,1,4)
+l.addWidget(presetLabel,7,0,1,1)
+l.addWidget(presets,7,1,1,1)
+l.addWidget(presetName,7,2,1,1)
+l.addWidget(presetButton,7,3,1,1)
 
 # Start internal timers and threads 
 positionUpdateThread = Thread(target=readPositionThread, args=())

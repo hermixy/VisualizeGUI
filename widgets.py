@@ -12,12 +12,7 @@ class ZMQPlotWidget(QtGui.QWidget):
     def __init__(self, parent=None):
         super(ZMQPlotWidget, self).__init__(parent)
 
-        self.layout = QtGui.QGridLayout()
-
-        # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 0
-        self.ZMQ_LEFT_X = -10
-        self.ZMQ_RIGHT_X = 0
-        
+        # FREQUENCY HAS TO BE SAME AS SERVER'S FREQUENCY
         # Desired Frequency (Hz) = 1 / self.ZMQ_FREQUENCY
         # USE FOR TIME.SLEEP (s)
         self.ZMQ_FREQUENCY = .025
@@ -25,22 +20,30 @@ class ZMQPlotWidget(QtGui.QWidget):
         # Frequency to update plot (ms)
         # USE FOR TIMER.TIMER (ms)
         self.ZMQ_TIMER_FREQUENCY = self.ZMQ_FREQUENCY * 1000
+
+        # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 0
+        self.ZMQ_LEFT_X = -10
+        self.ZMQ_RIGHT_X = 0
+        self.ZMQ_X_Axis = np.arange(self.ZMQ_LEFT_X, self.ZMQ_RIGHT_X, self.ZMQ_FREQUENCY)
+        self.ZMQBuffer = int((abs(self.ZMQ_LEFT_X) + abs(self.ZMQ_RIGHT_X))/self.ZMQ_FREQUENCY)
+        self.ZMQData = [] 
+        self.oldZMQDataPoint = 0
+        
+        # Create ZMQ Plot Widget
         self.ZMQPlot = pg.PlotWidget()
         self.ZMQPlot.setXRange(self.ZMQ_LEFT_X, self.ZMQ_RIGHT_X)
-        self.layout.addWidget(self.ZMQPlot)
         self.ZMQPlot.setTitle('ZMQ Plot')
         self.ZMQPlot.setLabel('left', 'Value')
         self.ZMQPlot.setLabel('bottom', 'Time (s)')
 
         self.ZMQPlotter = self.ZMQPlot.plot()
-        #self.ZMQPlotLegend = self.ZMQPlot.addLegend()
-        #self.ZMQPlotLegend.addItem(self.ZMQPlotter, 'A')
+        self.ZMQPlotter.setPen(32,201,151)
         
-        self.ZMQ_X_Axis = np.arange(self.ZMQ_LEFT_X, self.ZMQ_RIGHT_X, self.ZMQ_FREQUENCY)
-        self.ZMQBuffer = int((abs(self.ZMQ_LEFT_X) + abs(self.ZMQ_RIGHT_X))/self.ZMQ_FREQUENCY)
-        self.ZMQData = [] 
-        
-        # Create ZMQ Plot Widget
+        # Enable zoom in for selected box region
+        pg.setConfigOption('leftButtonPan', False)
+        self.layout = QtGui.QGridLayout()
+        self.layout.addWidget(self.ZMQPlot)
+
         # Setup socket port and topic using pub/sub system
         self.ZMQ_TCP_Port = "tcp://192.168.1.125:6002"
         self.ZMQ_Topic = "10001"
@@ -49,8 +52,6 @@ class ZMQPlotWidget(QtGui.QWidget):
         self.ZMQSocket.connect(self.ZMQ_TCP_Port)
         self.ZMQSocket.setsockopt(zmq.SUBSCRIBE, self.ZMQ_Topic)
         
-        self.oldZMQDataPoint = 0
-
     def updateZMQPlotAddress(self, address, topic):
         self.ZMQ_TCP_Port = address 
         self.ZMQ_Topic = topic
@@ -72,12 +73,14 @@ class ZMQPlotWidget(QtGui.QWidget):
         if len(self.ZMQData) >= self.ZMQBuffer:
             self.ZMQData.pop(0)
         
-        #self.ZMQData.append(random.randint(1,101))        
         self.ZMQData.append(float(self.ZMQDataPoint))
         self.ZMQPlotter.setData(self.ZMQ_X_Axis[len(self.ZMQ_X_Axis) - len(self.ZMQData):], self.ZMQData)
     
     def getZMQPlotAddress(self):
         return self.ZMQ_TCP_Port
+    
+    def getZMQPlotWidget(self):
+        return self.ZMQPlot
 
     # Version with QTimer (ms)
     def getZMQTimerFrequency(self):
@@ -87,45 +90,49 @@ class ZMQPlotWidget(QtGui.QWidget):
     def getZMQFrequency(self):
         return self.ZMQ_FREQUENCY
 
+    def getZMQPlotLayout(self):
+        return self.layout
+
     def start(self):
         self.ZMQPlotTimer = QtCore.QTimer()
         self.ZMQPlotTimer.timeout.connect(self.ZMQPlotUpdater)
         self.ZMQPlotTimer.start(self.getZMQTimerFrequency())
           
-    def getZMQLayout(self):
-        return self.layout
-
 class RotationalControllerPlotWidget(QtGui.QWidget):
     def __init__(self, parent=None):
         super(RotationalControllerPlotWidget, self).__init__(parent)
 
-        self.layout = QtGui.QGridLayout()
-
-        # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 0
-        self.LEFT_X = -10
-        self.RIGHT_X = 0
-        
+        # FREQUENCY HAS TO BE SAME AS SERVER'S FREQUENCY
         # Desired Frequency (Hz) = 1 / self.FREQUENCY
         # USE FOR TIME.SLEEP (s)
-        # FREQUENCY HAS TO BE SAME AS SERVER'S FREQUENCY
         self.FREQUENCY = .025
 
         # Frequency to update plot (ms)
         # USE FOR TIMER.TIMER (ms)
         self.TIMER_FREQUENCY = self.FREQUENCY * 1000
+
+        # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 0
+        self.LEFT_X = -10
+        self.RIGHT_X = 0
+        self.X_Axis = np.arange(self.LEFT_X, self.RIGHT_X, self.FREQUENCY)
+        self.buffer = int((abs(self.LEFT_X) + abs(self.RIGHT_X))/self.FREQUENCY)
+        self.data = [] 
+
+        # Create ZMQ Plot Widget 
         self.plot = pg.PlotWidget()
         self.plot.setXRange(self.LEFT_X, self.RIGHT_X)
-        self.layout.addWidget(self.plot)
         self.plot.setTitle('Rotational Controller Position')
         self.plot.setLabel('left', 'Value')
         self.plot.setLabel('bottom', 'Time (s)')
 
         self.plotter = self.plot.plot()
-        
-        self.X_Axis = np.arange(self.LEFT_X, self.RIGHT_X, self.FREQUENCY)
-        self.buffer = int((abs(self.LEFT_X) + abs(self.RIGHT_X))/self.FREQUENCY)
-        self.data = [] 
-        
+        self.plotter.setPen(243,229,245)
+
+        # Enable zoom in for selected box region
+        pg.setConfigOption('leftButtonPan', False)
+        self.layout = QtGui.QGridLayout()
+        self.layout.addWidget(self.plot)
+
     def plotUpdater(self, data):
         self.dataPoint = float(data)
 
@@ -143,9 +150,13 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
     def getRotationalControllerLayout(self):
         return self.layout
 
+    def getRotationalControllerPlotWidget(self):
+        return self.plot
+
 class PortSettingPopUpWidget(QtGui.QWidget):
     def __init__(self, windowTitle, parent=None):
         super(PortSettingPopUpWidget, self).__init__(parent)
+
         self.popUpWidth = 195
         self.popUpHeight = 150
         self.setFixedSize(self.popUpWidth, self.popUpHeight)
