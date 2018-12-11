@@ -26,10 +26,10 @@ messagedata = 0.0
 
 def Get_Position():
     global messagedata
-    ser.write('1TP?\r\n')
     oldmessage = messagedata
-    string = ser.readline().strip()
     try:
+        ser.write('1TP?\r\n')
+        string = ser.readline().strip()
         messagedata = float(string[3:])
     except:
         messagedata = oldmessage
