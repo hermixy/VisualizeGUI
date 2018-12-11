@@ -72,6 +72,7 @@ def readDataThread():
 
 initZMQHandshake()
 
+# Initial graph ranges and view spacing
 left_x = -10
 right_x = 0
 x_axis = np.arange(left_x, right_x, sleep_frequency)
@@ -90,7 +91,7 @@ reference_plot = plot.plot()
 IMU1_plot = plot.plot()
 l.addWidget(plot, 1, 0, 1, 6)
 
-reference_plot.setPen('g')
+#reference_plot.setPen('b')
 IMU1_plot.setPen('r')
 
 readDataThread = Thread(target=readDataThread, args=())
@@ -105,14 +106,20 @@ def update():
     global reference_plot_buffer, reference_plot_data
     global reference_plot, IMU1
     global IMU1_plot_buffer, IMU1_plot_data
-    global x_axis
+    global x_axis, plot, count, left_x, right_x
+
+    left_x += sleep_frequency
+    right_x += sleep_frequency
+    reference_plot.setPos(right_x, 0)
+    plot.setXRange(left_x, right_x)
 
     if len(reference_plot_data) >= reference_plot_buffer:
         reference_plot_data.pop(0)
     if len(IMU1_plot_data) >= IMU1_plot_buffer:
         IMU1_plot_data.pop(0)
     
-    reference_plot_data.append(float(reference_position))
+    #reference_plot_data.append(float(reference_position))
+    reference_plot_data.append(float(random.randint(1,100)))
     reference_plot.setData(x_axis[len(x_axis) - len(reference_plot_data):], reference_plot_data)
 
 timer = QtCore.QTimer()
