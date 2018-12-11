@@ -89,18 +89,20 @@ IMU2_plot_buffer = int((abs(left_x) + abs(right_x))/sleep_frequency)
 IMU2_plot_data = []
 
 plot = pg.PlotWidget()
+plot.addLegend()
 plot.setXRange(left_x, right_x)
 plot.setTitle('IMU Benchmark')
 plot.setLabel('left', 'Position')
 plot.setLabel('bottom', 'Timestamp')
 
-reference_plot = plot.plot()
-IMU1_plot = plot.plot()
-IMU2_plot = plot.plot()
+reference_plot = plot.plot(name="Reference")
+IMU1_plot = plot.plot(name="IMU1")
+IMU2_plot = plot.plot(name="IMU2")
 l.addWidget(plot, 1, 0, 1, 6)
 
-IMU1_plot.setPen('r')
-IMU2_plot.setPen('g')
+reference_plot.setPen('w', width=2)
+IMU1_plot.setPen('r', width=2)
+IMU2_plot.setPen(26,170,85, width=2)
 
 def update():
     global reference_timestamp, IMU1_timestamp 
@@ -122,7 +124,8 @@ def update():
 
     # Controls axis shifting
     plot.setXRange(left_x, right_x)
-
+    
+    # Remove last item and append new item to simulate data shifting over
     if len(reference_plot_data) >= reference_plot_buffer:
         reference_plot_data.pop(0)
     if len(IMU1_plot_data) >= IMU1_plot_buffer:

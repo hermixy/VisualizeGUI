@@ -8,6 +8,8 @@ import time
 from threading import Thread
 import cv2
 
+# Plot with fixed data moving right to left
+# Adjustable fixed x-axis, dynamic y-axis, data does not shrink
 class ZMQPlotWidget(QtGui.QWidget):
     def __init__(self, parent=None):
         super(ZMQPlotWidget, self).__init__(parent)
