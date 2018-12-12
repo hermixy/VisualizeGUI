@@ -43,6 +43,7 @@ def initZMQHandshake():
     global IMU_topic
     global IMU_plot_buffer
     global IMU_plot_data
+    global left_x, right_x
     
     try:
         IMU_sockets = []
@@ -61,40 +62,49 @@ def initZMQHandshake():
             IMU_timestamp.append(timestamp)
             IMU_position.append(position)
             IMU_sockets.append(socket)
-
+            IMU_plot_buffer.append(int((abs(left_x) + abs(right_x))/IMU_list[imu][2]))
     except:
-        print("no socket")
+        print("ERROR: Unable to connect to socket")
+        exit(1)
 
-def plotBufferInit():
-    reference_plot_buffer = int((abs(left_x) + abs(right_x))/sleep_frequency)
-    reference_plot_data = []
-    IMU1_plot_buffer = int((abs(left_x) + abs(right_x))/sleep_frequency)
-    IMU1_plot_data = []
-def readDataThread():
-    global reference_socket
-    global reference_timestamp 
-    global reference_position 
-    global sleep_frequency
+def createIMUPlots():
+    global plot
+    global IMU_plots
+    global IMU_list
+
+    colorTable = {'1': 'r',
+                  '2': 'g',
+                  '3': 'c',
+                  '4': 'm',
+                  '5': 'y',
+                  '6': 'k',
+                  '7': 'w'}
+
+    IMU_plots = []
+    for imu in range(len(IMU_list)):
+        if imu == 0:
+            p = plot.plot(name="Reference")
+            p.setPen('w', width=2)
+        elif imu <= len(colorTable):
+            p = plot.plot(name="IMU" + str(imu))
+            p.setPen(colorTable[str(imu)], width=2)
+        else:
+            p = plot.plot(name="IMU" + str(imu))
+            p.setPen('w', width=2)
+
+        IMU_plots.append(p)
+
+def readDataThread(n, s, f):
+    global IMU_timestamp
+    global IMU_topic
+    global IMU_position 
     
     while True:
         try:
-            topic, reference_timestamp, reference_position = reference_socket.recv().split()
+            IMU_topic[n], IMU_timestamp[n], IMU_position[n] = s.recv().split()
         except:
-            print('error')
-        time.sleep(sleep_frequency)
-
-def readIMU1DataThread():
-    global IMU1_socket
-    global IMU1_timestamp 
-    global IMU1_position 
-    global sleep_frequency
-    
-    while True:
-        try:
-            topic, IMU1_timestamp, IMU1_position = IMU1_socket.recv().split()
-        except:
-            print('error')
-        time.sleep(sleep_frequency)
+            print('ERROR: Data update thread unable to recv')
+        time.sleep(f)
 
 app = QtGui.QApplication([])
 app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
@@ -106,24 +116,14 @@ l = QtGui.QGridLayout()
 mw.setCentralWidget(cw)
 cw.setLayout(l)
 
-readSettings()
-initZMQHandshake()
-print(IMU_list)
-
-print IMU_sockets
-print IMU_position
-print IMU_timestamp 
-print IMU_topic
-exit(1)
-
 # Initial graph ranges and view spacing (right_x has to be 0)
 left_x = -15
 right_x = 0
-x_axis = np.arange(left_x, right_x, IMU_list[0][3])
-keference_plot_buffer = int((abs(left_x) + abs(right_x))/sleep_frequency)
-reference_plot_data = []
-IMU1_plot_buffer = int((abs(left_x) + abs(right_x))/sleep_frequency)
-IMU1_plot_data = []
+
+readSettings()
+initZMQHandshake()
+
+x_axis = np.arange(left_x, right_x, IMU_list[0][2])
 
 plot = pg.PlotWidget()
 plot.addLegend()
@@ -132,12 +132,9 @@ plot.setTitle('IMU Benchmark')
 plot.setLabel('left', 'Position')
 plot.setLabel('bottom', 'Timestamp')
 
-reference_plot = plot.plot(name="Reference")
-IMU1_plot = plot.plot(name="IMU1")
+createIMUPlots()
 l.addWidget(plot, 1, 0, 1, 6)
 
-reference_plot.setPen('w', width=2)
-IMU1_plot.setPen('r', width=2)
 
 def update():
     global reference_timestamp, IMU1_timestamp 
@@ -170,17 +167,19 @@ def update():
     IMU1_plot_data.append(float(IMU1_position))
     IMU1_plot.setData(x_axis[len(x_axis) - len(IMU1_plot_data):], IMU1_plot_data)
 
-readReferenceDataThread = Thread(target=readReferenceDataThread, args=())
-readReferenceDataThread.daemon = True
-readReferenceDataThread.start()
+IMU_threads = []
 
-readIMU1DataThread = Thread(target=readIMU1DataThread, args=())
-readIMU1DataThread.daemon = True
-readIMU1DataThread.start()
+for imu in range(len(IMU_list)):
+    thread = Thread(target=readDataThread, args=(imu, IMU_sockets[imu], IMU_list[imu][2]))
+    thread.daemon = True
+    thread.start()
+    IMU_threads.append(thread)
 
+'''
 timer = QtCore.QTimer()
 timer.timeout.connect(update)
 timer.start(timer_frequency)
+'''
 
 mw.show()
 
