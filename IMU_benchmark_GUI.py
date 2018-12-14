@@ -44,6 +44,7 @@ def initZMQHandshake():
     global IMU_plot_buffer
     global IMU_plot_data
     global left_x, right_x
+    global IMU_axis
     
     try:
         IMU_sockets = []
@@ -51,7 +52,8 @@ def initZMQHandshake():
         IMU_timestamp = []
         IMU_topic = []
         IMU_plot_buffer = []
-        IMU_plot_data = []
+        IMU_plot_data = {}
+        IMU_axis = {}
         for imu in range(len(IMU_list)):
             context = zmq.Context()
             socket = context.socket(zmq.SUB)
@@ -62,6 +64,8 @@ def initZMQHandshake():
             IMU_timestamp.append(timestamp)
             IMU_position.append(position)
             IMU_sockets.append(socket)
+            IMU_plot_data[imu] = []
+            IMU_axis[imu] = {'left': left_x, 'right': right_x}
             IMU_plot_buffer.append(int((abs(left_x) + abs(right_x))/IMU_list[imu][2]))
     except:
         print("ERROR: Unable to connect to socket")
@@ -135,37 +139,26 @@ plot.setLabel('bottom', 'Timestamp')
 createIMUPlots()
 l.addWidget(plot, 1, 0, 1, 6)
 
+def updateData(imu):
+    global IMU_timestamp 
+    global IMU_position 
+    global IMU_plot_buffer, IMU_plot_data 
+    global IMU_plots
+    global x_axis, plot
 
-def update():
-    global reference_timestamp, IMU1_timestamp 
-    global reference_position, IMU1_position 
-    global reference_plot_buffer, reference_plot_data
-    global reference_plot, IMU1
-    global IMU1_plot_buffer, IMU1_plot_data
-    global x_axis, plot, count, left_x, right_x
-    global inverted_plot
-
-    left_x += sleep_frequency
-    right_x += sleep_frequency
+    sleep_frequency = IMU_list[imu][2]
+    IMU_axis[imu]['left'] += sleep_frequency
+    IMU_axis[imu]['right'] += sleep_frequency
 
     # Controls proper data movement
-    reference_plot.setPos(right_x, 0)
-    IMU1_plot.setPos(right_x, 0)
+    IMU_plots[imu].setPos(IMU_axis[imu]['right'], 0)
 
-    # Controls axis shifting
-    plot.setXRange(left_x, right_x)
-    
     # Remove last item and append new item to simulate data shifting over
-    if len(reference_plot_data) >= reference_plot_buffer:
-        reference_plot_data.pop(0)
-    if len(IMU1_plot_data) >= IMU1_plot_buffer:
-        IMU1_plot_data.pop(0)
+    if len(IMU_plot_data[imu]) >= IMU_plot_buffer[imu]:
+        IMU_plot_data[imu].pop(0)
     
-    reference_plot_data.append(float(reference_position))
-    reference_plot.setData(x_axis[len(x_axis) - len(reference_plot_data):], reference_plot_data)
-
-    IMU1_plot_data.append(float(IMU1_position))
-    IMU1_plot.setData(x_axis[len(x_axis) - len(IMU1_plot_data):], IMU1_plot_data)
+    IMU_plot_data[imu].append(float(IMU_position[imu]))
+    IMU_plots[imu].setData(x_axis[len(x_axis) - len(IMU_plot_data[imu]):], IMU_plot_data[imu])
 
 IMU_threads = []
 
@@ -174,12 +167,28 @@ for imu in range(len(IMU_list)):
     thread.daemon = True
     thread.start()
     IMU_threads.append(thread)
+def updateAxis(n):
+    global plot
+    global IMU_axis
 
-'''
-timer = QtCore.QTimer()
-timer.timeout.connect(update)
-timer.start(timer_frequency)
-'''
+    try:
+        plot.setXRange(IMU_axis[n]['left'], IMU_axis[n]['right'])
+    except:
+        pass
+            
+arr = []
+timer0 = QtCore.QTimer()
+timer0.timeout.connect(lambda: updateData(0))
+timer0.start(IMU_list[0][3])
+timer1 = QtCore.QTimer()
+timer1.timeout.connect(lambda: updateData(1))
+timer1.start(IMU_list[1][3])
+arr.append(timer0)
+arr.append(timer1)
+
+timer3 = QtCore.QTimer()
+timer3.timeout.connect(lambda: updateAxis(0))
+timer3.start(IMU_list[0][3])
 
 mw.show()
 
