@@ -139,57 +139,88 @@ plot.setLabel('bottom', 'Timestamp')
 createIMUPlots()
 l.addWidget(plot, 1, 0, 1, 6)
 
-def updateData(imu):
-    global IMU_timestamp 
-    global IMU_position 
-    global IMU_plot_buffer, IMU_plot_data 
-    global IMU_plots
-    global x_axis, plot
-
-    sleep_frequency = IMU_list[imu][2]
-    IMU_axis[imu]['left'] += sleep_frequency
-    IMU_axis[imu]['right'] += sleep_frequency
-
-    # Controls proper data movement
-    IMU_plots[imu].setPos(IMU_axis[imu]['right'], 0)
-
-    # Remove last item and append new item to simulate data shifting over
-    if len(IMU_plot_data[imu]) >= IMU_plot_buffer[imu]:
-        IMU_plot_data[imu].pop(0)
-    
-    IMU_plot_data[imu].append(float(IMU_position[imu]))
-    IMU_plots[imu].setData(x_axis[len(x_axis) - len(IMU_plot_data[imu]):], IMU_plot_data[imu])
-
-IMU_threads = []
+IMU_read_data_threads = []
 
 for imu in range(len(IMU_list)):
     thread = Thread(target=readDataThread, args=(imu, IMU_sockets[imu], IMU_list[imu][2]))
     thread.daemon = True
     thread.start()
-    IMU_threads.append(thread)
-def updateAxis(n):
-    global plot
-    global IMU_axis
+    IMU_read_data_threads.append(thread)
 
-    try:
-        plot.setXRange(IMU_axis[n]['left'], IMU_axis[n]['right'])
-    except:
-        pass
-            
-arr = []
-timer0 = QtCore.QTimer()
-timer0.timeout.connect(lambda: updateData(0))
-timer0.start(IMU_list[0][3])
-timer1 = QtCore.QTimer()
-timer1.timeout.connect(lambda: updateData(1))
-timer1.start(IMU_list[1][3])
-arr.append(timer0)
-arr.append(timer1)
+IMU_data_update_threads = []
 
-timer3 = QtCore.QTimer()
-timer3.timeout.connect(lambda: updateAxis(0))
-timer3.start(IMU_list[0][3])
+class updateDataThread(QtCore.QThread):
+    global IMU_timestamp 
+    global IMU_position 
+    global IMU_plot_buffer, IMU_plot_data 
+    global IMU_plots
+    global x_axis, plot, IMU_axis
+    def __init__(self, imu, sleep_frequency, timer_frequency, parent=None):
+        super(updateDataThread, self).__init__(parent)
+        self.imu = imu
+        self.sleep_frequency = sleep_frequency
+        self.timer_frequency = timer_frequency
 
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(self.updateData)
+        self.started.connect(self.startTimer)
+        self.daemon = True
+        self.start()
+
+    def startTimer(self):
+        self.timer.start(self.timer_frequency)
+
+    def updateData(self):
+        IMU_axis[self.imu]['left'] += self.sleep_frequency
+        IMU_axis[self.imu]['right'] += self.sleep_frequency
+
+        # Controls proper data movement
+        IMU_plots[self.imu].setPos(IMU_axis[self.imu]['right'], 0)
+
+        # Remove last item and append new item to simulate data shifting over
+        if len(IMU_plot_data[self.imu]) >= IMU_plot_buffer[self.imu]:
+            IMU_plot_data[self.imu].pop(0)
+        
+        IMU_plot_data[self.imu].append(float(IMU_position[self.imu]))
+        IMU_plots[self.imu].setData(x_axis[len(x_axis) - len(IMU_plot_data[self.imu]):], IMU_plot_data[self.imu])
+
+class updateAxisThread(QtCore.QThread):
+    global plot, IMU_axis
+    global IMU_list
+    
+    def __init__(self, parent=None):
+        super(updateAxisThread, self).__init__(parent)
+        self.findFastestTimerFrequency()
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(self.updateAxis)
+        self.started.connect(self.startTimer)
+        self.daemon = True
+        self.start()
+    
+    def findFastestTimerFrequency(self):
+        temporary_timer_frequency = IMU_list[0][3]
+        temporary_imu = 0
+        for imu in range(len(IMU_list)):
+            if IMU_list[imu][3] < temporary_timer_frequency:
+                temporary_timer_frequency = IMU_list[imu][3]
+                temporary_imu = imu
+        self.timer_frequency = temporary_timer_frequency
+        self.imu = temporary_imu
+
+    def startTimer(self):
+        self.timer.start(self.timer_frequency)
+
+    def updateAxis(self):
+        try:
+            plot.setXRange(IMU_axis[self.imu]['left'], IMU_axis[self.imu]['right'])
+        except:
+            pass
+
+for imu in range(len(IMU_list)):
+    thread = updateDataThread(imu, IMU_list[imu][2], IMU_list[imu][3])
+    IMU_data_update_threads.append(thread)
+
+updateAxisThread = updateAxisThread()
 mw.show()
 
 if __name__ == '__main__':
