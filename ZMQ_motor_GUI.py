@@ -9,6 +9,7 @@ from PyQt4.QtGui import QSizePolicy
 from widgets import PortSettingPopUpWidget
 from widgets import ZMQPlotWidget 
 from widgets import RotationalControllerPlotWidget 
+from widgets import progressBarWidget 
 import pyqtgraph as pg
 import random
 import zmq
@@ -42,7 +43,7 @@ def moveButton():
                 command = "move {} {} {}".format(v,a,p)
                 parameter_socket.send(command)
                 result = parameter_socket.recv()
-                print("Move response is " + result)
+                #print("Move response is " + result)
             else:
                 pass
         except zmq.ZMQError:
@@ -57,7 +58,7 @@ def homeButton():
         try:
             parameter_socket.send("home")
             result = parameter_socket.recv()
-            print("Home response is " + result)
+            #print("Home response is " + result)
         except zmq.ZMQError:
             # No data arrived
             pass
@@ -267,13 +268,17 @@ app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
 mw.setWindowTitle('ZMQ Motor GUI')
 
+#mw.setWindowFlags(QtCore.Qt.FramelessWindowHint)
+
+# Establish ZMQ socket connections 
+initZMQHandshake()
+
+#progressBar = progressBarWidget(app)
+
 # Initialize statusbar
 statusBar = QtGui.QStatusBar()
 mw.setStatusBar(statusBar)
 statusBar.setSizeGripEnabled(False)
-
-# Establish ZMQ socket connections 
-initZMQHandshake()
 
 # Create plots
 #plot = ZMQPlotWidget()
@@ -289,7 +294,7 @@ mw.setCentralWidget(cw)
 l = QtGui.QGridLayout()
 
 # Prevent window from being maximized
-#mw.setFixedSize(cw.size())
+mw.setFixedSize(900,280)
 
 # Enable zoom in for selected box region
 pg.setConfigOption('leftButtonPan', False)

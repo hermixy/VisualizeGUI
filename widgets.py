@@ -125,7 +125,7 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
         self.plot.setLabel('bottom', 'Time (s)')
 
         self.plotter = self.plot.plot()
-        self.plotter.setPen(232,234,246)
+        self.plotter.setPen(32,201,151)
 
         self.layout = QtGui.QGridLayout()
         self.layout.addWidget(self.plot)
@@ -428,5 +428,74 @@ class VideoDisplayWidget(QtGui.QWidget):
 
     def pauseCapture(self):
         self.timer.stop()
+
+'''
+class progressBarWidget(QtGui.QWidget):
+    def __init__(self, app, parent=None):
+        super(progressBarWidget, self).__init__(parent)
+        
+        self.ticks = 10
+
+        self.progressBar = QtGui.QProgressBar()
+        self.progressBar.setRange(0,0)
+        self.progressBar.setAlignment(QtCore.Qt.AlignCenter)
+        self._text = 'finding resource'
+
+        self.center_point = QtGui.QDesktopWidget().availableGeometry().center()
+        self.center_point.setX(self.center_point.x() - self.progressBar.sizeHint().width())
+        self.progressBar.move(self.center_point)
+        app.processEvents()
+
+        self.progressBar.show()
+        
+        for i in range(1, self.ticks - 1):
+            self.progressBar.setValue(i)
+            t = time.time()
+            while time.time() < t + 0.1:
+                app.processEvents() 
+        time.sleep(1)
+
+        # Close progress bar
+        self.progressBar.close()
+
+    def setText(self, text):
+        self._text = text
+
+    def text(self):
+        try:
+            return self._text
+        except:
+            pass
+
+
+'''
+class progressBarWidget(QtGui.QProgressBar):
+    def __init__(self, app, parent=None):
+        super(progressBarWidget, self).__init__(parent)
+        self._text = None
+        self._text = "Connecting to server.."
+        self.setRange(0,0)
+
+        # Remove close, maximize, minimize
+        #self.progressBar.setWindowFlags(QtCore.Qt.FramelessWindowHint)
+        
+        # Center progress bar in middle of screen
+        self.center_point = QtGui.QDesktopWidget().availableGeometry().center()
+        self.center_point.setX(self.center_point.x() - self.sizeHint().width())
+        self.move(self.center_point)
+
+        # Put text in center 
+        self.setAlignment(QtCore.Qt.AlignCenter)
+        self.show()
+        app.processEvents()
+
+    def setText(self, text):
+        self._text = text
+
+    def text(self):
+        try:
+            return self._text
+        except:
+            pass
 
 
