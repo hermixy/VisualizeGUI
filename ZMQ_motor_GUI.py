@@ -2,7 +2,7 @@
 Run servers: pubsub_server2.py for parameter/position changes (OPTIONAL)
              reqrep_server1.py for initial ZMQ Plot (REQUIRED)
              reqrep_server2.py for change ZMQ Plot ability (OPTIONAL)
-             server1.py for rotational controller (REQUIRED)
+             server1.py for rotational controller (REQUIRED) (switch for pubsub_server1.py)
 '''
 from PyQt4 import QtCore, QtGui 
 from PyQt4.QtGui import QSizePolicy
@@ -18,12 +18,12 @@ from threading import Thread
 import time
 
 # Pub/sub
-position_address = "tcp://192.168.1.125:6011"
+position_address = "tcp://192.168.1.134:6011"
 position_topic = "10000"
 old_position_address = position_address
 
 # Request/reply
-parameter_address = "tcp://192.168.1.125:6010"
+parameter_address = "tcp://192.168.1.134:6010"
 old_parameter_address = parameter_address
 
 # =====================================================================

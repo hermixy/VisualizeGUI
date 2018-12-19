@@ -45,7 +45,7 @@ class ZMQPlotWidget(QtGui.QWidget):
         self.layout.addWidget(self.ZMQPlot)
 
         # Setup socket port and topic using pub/sub system
-        self.ZMQ_TCP_Port = "tcp://192.168.1.125:6002"
+        self.ZMQ_TCP_Port = "tcp://192.168.1.134:6002"
         self.ZMQ_Topic = "10001"
         self.ZMQContext = zmq.Context()
         self.ZMQSocket = self.ZMQContext.socket(zmq.SUB)
