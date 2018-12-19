@@ -124,7 +124,6 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         topic = str(self.position_TCPTopic.text())
         Thread(target=self.positionCheckValidPort, args=(address,port,topic)).start()
         self.close()
-        print('close popup')
         
     def position_cancelButton(self):
         self.close()
@@ -158,7 +157,6 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                             print("real error")
         # Put failed statusbar here
 
-
     def changePositionPort(self, address, topic):
         global position_context, position_socket, position_topic
 
@@ -173,6 +171,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         port = str(self.parameter_TCPPort.text())
         Thread(target=self.parameterCheckValidPort, args=(address,port)).start()
         self.close()
+        print('close popup')
         
     def parameter_cancelButton(self):
         self.close()
@@ -184,34 +183,44 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         self.parameter_address = s
 
     def parameterCheckValidPort(self, address, port):
+        global parameter_address
+        
         if address and port:
-            parameter_address = "tcp://" + address + ":" + port
-            context = zmq.Context()
-            socket = context.socket(zmq.REQ)
-            # Prevent program from hanging after closing
-            socket.setsockopt(zmq.LINGER, 0)
-            socket.connect(parameter_address)
-            socket.send("info?")
-            # Check for valid data within 1 second
-            time_end = time.time() + 1
-            valid_flag = False
-            while time.time() < time_end:
-                try:
-                    result = socket.recv().split(',')
-                    print(result)
-                    self.parameter_address = (address, port)
-                    valid_flag = True
-                    break
-                except zmq.ZMQError, e:
-                    # No data arrived
-                    if e.errno == zmq.EAGAIN:
-                        pass
-                    else:
-                        print("real error")
-            if valid_flag == False:
-                self.parameter_address = (False)
-        else:
-            self.parameter_address = (False)
+            new_parameter_address = "tcp://" + address + ":" + port
+            if new_parameter_address != parameter_address:
+                context = zmq.Context()
+                socket = context.socket(zmq.REQ)
+                # Prevent program from hanging after closing
+                socket.setsockopt(zmq.LINGER, 0)
+                socket.connect(new_parameter_address)
+                socket.send("info?")
+                # Check for valid data within 1 second
+                time_end = time.time() + 1
+                while time.time() < time_end:
+                    try:
+                        result = socket.recv(zmq.NOBLOCK).split(',')
+                        parameter_address = new_parameter_address
+                        self.changeParameterPort(new_parameter_address)
+                        #statusBar.showMessage('Successfully connected to ' + parameter_address, 8000)
+                        return
+                    except zmq.ZMQError, e:
+                        # No data arrived
+                        if e.errno == zmq.EAGAIN:
+                            pass
+                        else:
+                            print("real error")
+        #statusBar.showMessage('Invalid parameter IP/Port settings!', 8000) 
+
+    def changeParameterPort(self, address):
+        global parameter_context, parameter_socket
+        global velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units
+        parameter_context = zmq.Context()
+        parameter_socket = parameter_context.socket(zmq.REQ)
+        parameter_socket.connect(address)
+        parameter_socket.send('info?')
+        parameter_information = [x.strip() for x in parameter_socket.recv().split(',')]
+        velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units = parameter_information
+        parametersUpdate(velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax)
 
     def plot_saveButton(self):
         address = str(self.plot_TCPAddress.text())
@@ -352,43 +361,6 @@ def readPositionThread():
         except:
             currentPositionValue = oldCurrentPositionValue
         time.sleep(frequency)
-
-def parameterPortAddressUpdate():
-    global portAddress
-    global parameter_address, parameter_context, parameter_socket
-    global velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units
-    global old_parameter_address
-    global statusBar
-    
-    try:
-        raw_parameter_address = portAddress.getParameterAddress()
-        # Already verified working address
-        if raw_parameter_address and raw_parameter_address != '()':
-            address, port = raw_parameter_address
-            parameter_address = "tcp://" + address + ":" + port
-            # Different address from current settings
-            if old_parameter_address != parameter_address:
-                old_parameter_address = parameter_address
-                parameter_context = zmq.Context()
-                parameter_socket = parameter_context.socket(zmq.REQ)
-                parameter_socket.connect(parameter_address)
-                parameter_socket.send('info?')
-                parameter_information = [x.strip() for x in parameter_socket.recv().split(',')]
-                velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units = parameter_information
-                parametersUpdate(velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax)
-
-                statusBar.showMessage('Successfully connected to ' + parameter_address, 8000)
-                portAddress.setParameterAddress("()")
-            elif old_parameter_address == parameter_address:
-                statusBar.showMessage('Already connected to ' + parameter_address, 8000)
-
-        elif not raw_parameter_address and type(raw_parameter_address) is bool: 
-            portAddress.setParameterAddress("()")
-            statusBar.showMessage('Invalid parameter IP/Port settings!', 8000) 
-        else:
-            pass
-    except NameError:
-        pass
 
 def plotPortAddressUpdate():
     global portAddress
@@ -606,10 +578,6 @@ positionUpdateTimer.timeout.connect(positionUpdate)
 positionUpdateTimer.start(motorPlot.getRotationalControllerTimerFrequency())
 
 ''''
-parameterPortAddressUpdateTimer = QtCore.QTimer()
-parameterPortAddressUpdateTimer.timeout.connect(parameterPortAddressUpdate)
-parameterPortAddressUpdateTimer.start(1000)
-
 plotPortAddressUpdateTimer = QtCore.QTimer()
 plotPortAddressUpdateTimer.timeout.connect(plotPortAddressUpdate)
 plotPortAddressUpdateTimer.start(1000)
