@@ -176,12 +176,6 @@ class PortSettingPopUpWidget(QtGui.QWidget):
     def parameter_cancelButton(self):
         self.close()
 
-    def getParameterAddress(self):
-        return self.parameter_address
-    
-    def setParameterAddress(self, s):
-        self.parameter_address = s
-
     def parameterCheckValidPort(self, address, port):
         global parameter_address
         
@@ -232,38 +226,29 @@ class PortSettingPopUpWidget(QtGui.QWidget):
     def plot_cancelButton(self):
         self.close()
 
-    def getPlotAddress(self):
-        return self.plot_address
-    
-    def setPlotAddress(self, s):
-        self.plot_address = s
-
     def plotCheckValidPort(self, address, port, topic):
+        global plot
+        
         if address and port and topic:
-            port_address = "tcp://" + address + ":" + port
-            context = zmq.Context()
-            socket = context.socket(zmq.SUB)
-            socket.connect(port_address)
-            socket.setsockopt(zmq.SUBSCRIBE, topic)
-            # Check for valid data within 1 second
-            time_end = time.time() + 1
-            valid_flag = False
-            while time.time() < time_end:
-                try:
-                    topic, data = socket.recv().split()
-                    self.plot_address = (address, port, topic)
-                    valid_flag = True
-                    break
-                except zmq.ZMQError, e:
-                    # No data arrived
-                    if e.errno == zmq.EAGAIN:
-                        pass
-                    else:
-                        print("real error")
-            if valid_flag == False:
-                self.plot_address = (False)
-        else:
-            self.plot_address = (False)
+            new_plot_address = "tcp://" + address + ":" + port
+            if plot.getZMQPlotAddress() != new_plot_address:
+                context = zmq.Context()
+                socket = context.socket(zmq.SUB)
+                socket.connect(new_plot_address)
+                socket.setsockopt(zmq.SUBSCRIBE, topic)
+                # Check for valid data within 1 second
+                time_end = time.time() + 1
+                while time.time() < time_end:
+                    try:
+                        topic, data = socket.recv(zmq.NOBLOCK).split()
+                        plot.updateZMQPlotAddress(new_plot_address, topic)
+                        return
+                    except zmq.ZMQError, e:
+                        # No data arrived
+                        if e.errno == zmq.EAGAIN:
+                            pass
+                        else:
+                            print("real error")
 
 # =====================================================================
 # Button action functions
@@ -361,32 +346,6 @@ def readPositionThread():
         except:
             currentPositionValue = oldCurrentPositionValue
         time.sleep(frequency)
-
-def plotPortAddressUpdate():
-    global portAddress
-    global plot
-    global statusBar
-
-    try:
-        raw_plot_address = portAddress.getPlotAddress()
-        # Already verified working address
-        if raw_plot_address and raw_plot_address != '()':
-            address, port, topic = raw_plot_address
-            plot_address = "tcp://" + address + ":" + port
-            # Different address from current settings
-            if plot.getZMQPlotAddress() != plot_address:
-                plot.updateZMQPlotAddress(plot_address, topic)
-                statusBar.showMessage('Successfully connected to ' + plot_address, 8000)
-                portAddress.setPlotAddress("()")
-            elif plot.getZMQPlotAddress() == plot_address:
-                statusBar.showMessage('Already connected to ' + plot_address, 8000)
-        elif not raw_plot_address and type(raw_plot_address) is bool: 
-            portAddress.setPlotAddress("()")
-            statusBar.showMessage('Invalid plot IP/Port settings!', 8000) 
-        else:
-            pass
-    except NameError:
-        pass
 
 # Update fields with selected preset setting
 def presetSettingsUpdate():
@@ -576,12 +535,6 @@ positionUpdateThread.start()
 positionUpdateTimer = QtCore.QTimer()
 positionUpdateTimer.timeout.connect(positionUpdate)
 positionUpdateTimer.start(motorPlot.getRotationalControllerTimerFrequency())
-
-''''
-plotPortAddressUpdateTimer = QtCore.QTimer()
-plotPortAddressUpdateTimer.timeout.connect(plotPortAddressUpdate)
-plotPortAddressUpdateTimer.start(1000)
-'''
 
 mw.statusBar()
 mw.show()

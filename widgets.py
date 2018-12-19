@@ -205,4 +205,3 @@ class VideoDisplayWidget(QtGui.QWidget):
     def pauseCapture(self):
         self.timer.stop()
 
-
