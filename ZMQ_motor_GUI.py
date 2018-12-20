@@ -34,12 +34,12 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         self.setFixedSize(self.popUpWidth, self.popUpHeight)
 
         self.setWindowTitle(windowTitle)
-        self.parameter_address = ()
-        self.plot_address = ()
         self.tabs = QtGui.QTabWidget(self)
         self.positionTab = QtGui.QWidget()
         self.parameterTab = QtGui.QWidget()
         self.plotTab = QtGui.QWidget()
+        
+        self.status = ()
 
         # Position
         self.positionLayout = QtGui.QFormLayout()
@@ -114,9 +114,8 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         self.setWindowModality(QtCore.Qt.ApplicationModal)
         self.show()
 
-    def keyPressEvent(self, event):
-        if event.key() == QtCore.Qt.Key_Escape:
-            self.close()
+    def getStatus(self):
+        return self.status
 
     def position_saveButton(self):
         address = str(self.position_TCPAddress.text())
@@ -126,6 +125,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         self.close()
         
     def position_cancelButton(self):
+        self.status = ()
         self.close()
 
     def positionCheckValidPort(self, address, port, topic):
@@ -146,8 +146,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                         topic, data = socket.recv(zmq.NOBLOCK).split()
                         position_address = new_position_address
                         self.changePositionPort(new_position_address, topic)
-                        # Put success statusbar here
-                        #statusBar.showMessage('Successfully connected to ' + position_address, 8000)
+                        self.status = ('success', position_address)
                         return
                     except zmq.ZMQError, e:
                         # No data arrived
@@ -155,7 +154,11 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                             pass
                         else:
                             print("real error")
-        # Put failed statusbar here
+                self.status = ('fail', position_address)
+            else:
+                self.status = ('same', position_address)
+        else:
+            self.status = ('fail', position_address)
 
     def changePositionPort(self, address, topic):
         global position_context, position_socket, position_topic
@@ -165,13 +168,12 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         position_socket.connect(address)
         position_socket.setsockopt(zmq.SUBSCRIBE, topic)
         position_topic = topic
-
+    
     def parameter_saveButton(self):
         address = str(self.parameter_TCPAddress.text())
         port = str(self.parameter_TCPPort.text())
         Thread(target=self.parameterCheckValidPort, args=(address,port)).start()
         self.close()
-        print('close popup')
         
     def parameter_cancelButton(self):
         self.close()
@@ -310,6 +312,74 @@ def addPresetSettingsButton():
         presetName.clear()
     Thread(target=addPresetSettingsButtonThread, args=()).start()
 
+class displayStatusBarMessage(QtCore.QThread):
+    global statusBar
+    global portAddress
+    global statusThreads
+    global app
+
+    def __init__(self, parent=None):
+        super(displayStatusBarMessage, self).__init__(parent)
+        
+        # Display statusbar message length in ms
+        self.messageDuration = 8000
+
+        # Get status message of popup connect
+        self.signalThread = Thread(target=self.getSignal, args=())
+        self.signalThread.daemon = True
+        self.signalThread.start()
+
+        # Add QThread object to array to detect if got signal
+        self.statusThread = [] 
+        self.statusThread.append(self.signalThread)
+        
+        self.setTerminationEnabled(True)
+        self.daemon = True
+        self.start()
+
+        # Spin until get signal
+        while self.statusThread:
+            app.processEvents()
+        
+        # Display statusbar message
+        self.showMessage()
+        
+        self.terminate()
+        self.wait()
+
+    def getSignal(self):
+        self.status = portAddress.getStatus()
+        self.visible = self.isWidgetVisible()
+        while True:
+            if self.visible:
+                self.visible = self.isWidgetVisible()
+            else:
+                self.status = portAddress.getStatus()
+                break
+            time.sleep(.05)
+        
+        # Spin for extra time for the situation where it checks invalid input
+        # Additional time comes from time used to verify input settings function
+        time_end = time.time() + 1.25
+        while time.time() < time_end:
+            app.processEvents()
+        self.status = portAddress.getStatus()
+        
+        # Pop to signal parent thread that signal was received
+        self.statusThread.pop()
+    
+    def isWidgetVisible(self):
+        return True if not portAddress.visibleRegion().isEmpty() else False
+
+    def showMessage(self):
+        if self.status:
+            if self.status[0] == 'success':
+                statusBar.showMessage('Successfully connected to ' + str(self.status[1]), self.messageDuration)
+            elif self.status[0] == 'same':
+                statusBar.showMessage('Already connected to ' + str(self.status[1]), self.messageDuration)
+            elif self.status[0] == 'fail':
+                statusBar.showMessage('Invalid IP/Port settings!', self.messageDuration)
+
 # Change position, parameters, and plot IP/Port settings (TCP Address, Port, Topic)
 def changeIPPortSettingsButton():
     global portAddress
@@ -317,7 +387,8 @@ def changeIPPortSettingsButton():
     
     statusBar.clearMessage()
     portAddress = PortSettingPopUpWidget("IP/Port Settings")
-
+    displayStatusBarMessage()
+    
 # =====================================================================
 # Update timer and thread functions
 # =====================================================================
