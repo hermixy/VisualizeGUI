@@ -39,7 +39,9 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         self.parameterTab = QtGui.QWidget()
         self.plotTab = QtGui.QWidget()
         
+        # Status bar message data and data wait time in seconds
         self.status = ()
+        self.dataTimeout = 1
 
         # Position
         self.positionLayout = QtGui.QFormLayout()
@@ -139,8 +141,8 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                 socket = context.socket(zmq.SUB)
                 socket.connect(new_position_address)
                 socket.setsockopt(zmq.SUBSCRIBE, topic)
-                # Check for valid data within 1 second
-                time_end = time.time() + 1
+                # Check for valid data within time interval in seconds (s)
+                time_end = time.time() + self.dataTimeout
                 while time.time() < time_end:
                     try:
                         topic, data = socket.recv(zmq.NOBLOCK).split()
@@ -191,8 +193,8 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                 socket.setsockopt(zmq.LINGER, 0)
                 socket.connect(new_parameter_address)
                 socket.send("info?")
-                # Check for valid data within 1 second
-                time_end = time.time() + 1
+                # Check for valid data within time interval in seconds (s)
+                time_end = time.time() + self.dataTimeout
                 while time.time() < time_end:
                     try:
                         result = socket.recv(zmq.NOBLOCK).split(',')
@@ -244,8 +246,8 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                 socket = context.socket(zmq.SUB)
                 socket.connect(new_plot_address)
                 socket.setsockopt(zmq.SUBSCRIBE, topic)
-                # Check for valid data within 1 second
-                time_end = time.time() + 1
+                # Check for valid data within time interval in seconds (s)
+                time_end = time.time() + self.dataTimeout
                 while time.time() < time_end:
                     try:
                         topic, data = socket.recv(zmq.NOBLOCK).split()
