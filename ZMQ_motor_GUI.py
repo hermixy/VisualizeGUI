@@ -71,7 +71,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         self.parameter_TCPPort = QtGui.QLineEdit()
         self.parameter_TCPPort.setValidator(QtGui.QIntValidator())
         self.parameterButtonLayout = QtGui.QHBoxLayout()
-        self.parameterConnectButton = QtGui.QPushButton('Save')
+        self.parameterConnectButton = QtGui.QPushButton('Connect')
         self.parameterConnectButton.setStyleSheet('background-color: #3CB371')
         self.parameterConnectButton.clicked.connect(self.parameter_saveButton)
         self.parameterCancelButton = QtGui.QPushButton('Cancel')
@@ -176,6 +176,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         self.close()
         
     def parameter_cancelButton(self):
+        self.status = ()
         self.close()
 
     def parameterCheckValidPort(self, address, port):
@@ -197,7 +198,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                         result = socket.recv(zmq.NOBLOCK).split(',')
                         parameter_address = new_parameter_address
                         self.changeParameterPort(new_parameter_address)
-                        #statusBar.showMessage('Successfully connected to ' + parameter_address, 8000)
+                        self.status = ('success', parameter_address)
                         return
                     except zmq.ZMQError, e:
                         # No data arrived
@@ -205,7 +206,11 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                             pass
                         else:
                             print("real error")
-        #statusBar.showMessage('Invalid parameter IP/Port settings!', 8000) 
+                self.status = ('fail', parameter_address)
+            else:
+                self.status = ('same', parameter_address)
+        else:
+            self.status = ('fail', parameter_address)
 
     def changeParameterPort(self, address):
         global parameter_context, parameter_socket
@@ -226,6 +231,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         self.close()
         
     def plot_cancelButton(self):
+        self.status = ()
         self.close()
 
     def plotCheckValidPort(self, address, port, topic):
@@ -244,6 +250,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                     try:
                         topic, data = socket.recv(zmq.NOBLOCK).split()
                         plot.updateZMQPlotAddress(new_plot_address, topic)
+                        self.status = ('success', new_plot_address)
                         return
                     except zmq.ZMQError, e:
                         # No data arrived
@@ -251,6 +258,11 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                             pass
                         else:
                             print("real error")
+                self.status = ('fail', new_plot_address)
+            else:
+                self.status = ('same', new_plot_address)
+        else:
+            self.status = ('fail', plot.getZMQPlotAddress())
 
 # =====================================================================
 # Button action functions
