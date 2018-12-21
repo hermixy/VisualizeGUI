@@ -15,15 +15,60 @@ import numpy as np
 import sys
 from threading import Thread
 import time
+import configparser
 
-# Pub/sub
-position_address = "tcp://192.168.1.134:6011"
-position_topic = "10000"
-old_position_address = position_address
+def readSettings():
+    global position_address
+    global position_topic
+    global position_frequency
+    global parameter_address
+    global ZMQ_address
+    global ZMQ_topic
+    global ZMQ_frequency
 
-# Request/reply
-parameter_address = "tcp://192.168.1.134:6010"
-old_parameter_address = parameter_address
+    try:
+        config = configparser.ConfigParser()
+        config.read('motor.ini')
+        position_address = str(config['ROTATIONAL_CONTROLLER']['positionAddress'])
+        position_topic = str(config['ROTATIONAL_CONTROLLER']['positionTopic'])
+        position_frequency = float(config['ROTATIONAL_CONTROLLER']['positionFrequency'])
+        parameter_address = str(config['ROTATIONAL_CONTROLLER']['parameterAddress'])
+
+        ZMQ_address = str(config['ZMQ_PLOT']['ZMQAddress']) 
+        ZMQ_topic = str(config['ZMQ_PLOT']['ZMQTopic'])
+        try:
+            ZMQ_frequency = float(config['ZMQ_PLOT']['ZMQFrequency'])
+            if ZMQ_frequency <= 0:
+                exit(1)
+        except:
+            QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'Invalid ZMQFrequency value. Check motor.ini')
+            exit(1)
+
+    except KeyError:
+        print('File doesnt exist')
+        createEmptySettingsFile()
+        QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'Add settings into motor.ini file')
+        exit(1)
+
+def writeSettings(key, table):
+    parser = configparser.SafeConfigParser()
+    parser.read('motor.ini')
+    for k in table:
+        parser.set(key, k, table[k])
+    with open('motor.ini', 'w+') as configfile:
+        parser.write(configfile)
+
+def createEmptySettingsFile():
+    config = configparser.ConfigParser()
+    config['ROTATIONAL_CONTROLLER'] = {'positionAddress': '',
+                                       'positionTopic': '',
+                                       'positionFrequency': '',
+                                       'parameterAddress': '' }
+    config['ZMQ_PLOT'] = {'ZMQAddress': '',
+                          'ZMQTopic': '',
+                          'ZMQFrequency': '' }
+    with open('motor.ini', 'w') as configfile:
+        config.write(configfile)
 
 class PortSettingPopUpWidget(QtGui.QWidget):
     def __init__(self, windowTitle, parent=None):
@@ -252,6 +297,10 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                     try:
                         topic, data = socket.recv(zmq.NOBLOCK).split()
                         plot.updateZMQPlotAddress(new_plot_address, topic)
+                        if not plot.getVerified():
+                            plot.setVerified(True)
+                        settings = {'ZMQAddress': new_plot_address, 'ZMQTopic': topic}
+                        writeSettings('ZMQ_PLOT', settings) 
                         self.status = ('success', new_plot_address)
                         return
                     except zmq.ZMQError, e:
@@ -482,6 +531,7 @@ app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
 mw.setWindowTitle('ZMQ Motor GUI')
 
+readSettings()
 # Initialize statusbar
 statusBar = QtGui.QStatusBar()
 mw.setStatusBar(statusBar)
@@ -491,9 +541,8 @@ statusBar.setSizeGripEnabled(False)
 initZMQHandshake()
 
 # Create plots
-plot = ZMQPlotWidget()
-plot.start()
-motorPlot = RotationalControllerPlotWidget()
+plot = ZMQPlotWidget(ZMQ_address, ZMQ_topic, ZMQ_frequency)
+motorPlot = RotationalControllerPlotWidget(position_frequency)
 
 # Create and set widget layout
 # Main widget container

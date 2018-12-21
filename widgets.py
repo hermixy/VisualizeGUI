@@ -11,17 +11,19 @@ import cv2
 # Plot with fixed data moving right to left
 # Adjustable fixed x-axis, dynamic y-axis, data does not shrink
 class ZMQPlotWidget(QtGui.QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, ZMQ_address, ZMQ_topic, ZMQ_frequency, parent=None):
         super(ZMQPlotWidget, self).__init__(parent)
-
+        
+        self.verified = False
         # FREQUENCY HAS TO BE SAME AS SERVER'S FREQUENCY
         # Desired Frequency (Hz) = 1 / self.ZMQ_FREQUENCY
         # USE FOR TIME.SLEEP (s)
-        self.ZMQ_FREQUENCY = .025
+        self.ZMQ_FREQUENCY = ZMQ_frequency
 
         # Frequency to update plot (ms)
         # USE FOR TIMER.TIMER (ms)
         self.ZMQ_TIMER_FREQUENCY = self.ZMQ_FREQUENCY * 1000
+        self.dataTimeout = 1
 
         # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 0
         self.ZMQ_LEFT_X = -10
@@ -43,15 +45,37 @@ class ZMQPlotWidget(QtGui.QWidget):
         
         self.layout = QtGui.QGridLayout()
         self.layout.addWidget(self.ZMQPlot)
-
-        # Setup socket port and topic using pub/sub system
-        self.ZMQ_TCP_Port = "tcp://192.168.1.134:6002"
-        self.ZMQ_Topic = "10001"
-        self.ZMQContext = zmq.Context()
-        self.ZMQSocket = self.ZMQContext.socket(zmq.SUB)
-        self.ZMQSocket.connect(self.ZMQ_TCP_Port)
-        self.ZMQSocket.setsockopt(zmq.SUBSCRIBE, self.ZMQ_Topic)
         
+        # Setup socket port and topic using pub/sub system
+        self.ZMQ_TCP_Port = ZMQ_address
+        self.ZMQ_Topic = ZMQ_topic
+
+        self.initialCheckValidPort()
+        self.start()
+        
+    def initialCheckValidPort(self):
+        try:
+            context = zmq.Context()
+            socket = context.socket(zmq.SUB)
+            socket.connect(self.ZMQ_TCP_Port)
+            socket.setsockopt(zmq.SUBSCRIBE, self.ZMQ_Topic)
+            # Check for valid data within time interval in seconds (s)
+            time_end = time.time() + self.dataTimeout
+            while time.time() < time_end:
+                try:
+                    topic, data = socket.recv(zmq.NOBLOCK).split()
+                    self.updateZMQPlotAddress(self.ZMQ_TCP_Port, self.ZMQ_Topic)
+                    self.verified = True
+                    return
+                except zmq.ZMQError, e:
+                    # No data arrived
+                    if e.errno == zmq.EAGAIN:
+                        pass
+                    else:
+                        print("real error")
+        except:
+            self.verified = False
+
     def updateZMQPlotAddress(self, address, topic):
         self.ZMQ_TCP_Port = address 
         self.ZMQ_Topic = topic
@@ -61,20 +85,21 @@ class ZMQPlotWidget(QtGui.QWidget):
         self.ZMQSocket.setsockopt(zmq.SUBSCRIBE, self.ZMQ_Topic)
         
     def ZMQPlotUpdater(self):
-        # Receives (topic, data)
-        try:
-            self.topic, self.ZMQDataPoint = self.ZMQSocket.recv().split()
-            self.oldZMQDataPoint = self.ZMQDataPoint
-        except zmq.ZMQError, e:
-            # No data arrived
-            if e.errno == zmq.EAGAIN:
-                self.ZMQDataPoint = self.oldZMQDataPoint
+        if self.verified:
+            # Receives (topic, data)
+            try:
+                self.topic, self.ZMQDataPoint = self.ZMQSocket.recv().split()
+                self.oldZMQDataPoint = self.ZMQDataPoint
+            except zmq.ZMQError, e:
+                # No data arrived
+                if e.errno == zmq.EAGAIN:
+                    self.ZMQDataPoint = self.oldZMQDataPoint
 
-        if len(self.ZMQData) >= self.ZMQBuffer:
-            self.ZMQData.pop(0)
-        
-        self.ZMQData.append(float(self.ZMQDataPoint))
-        self.ZMQPlotter.setData(self.ZMQ_X_Axis[len(self.ZMQ_X_Axis) - len(self.ZMQData):], self.ZMQData)
+            if len(self.ZMQData) >= self.ZMQBuffer:
+                self.ZMQData.pop(0)
+            
+            self.ZMQData.append(float(self.ZMQDataPoint))
+            self.ZMQPlotter.setData(self.ZMQ_X_Axis[len(self.ZMQ_X_Axis) - len(self.ZMQData):], self.ZMQData)
     
     def getZMQPlotAddress(self):
         return self.ZMQ_TCP_Port
@@ -97,15 +122,20 @@ class ZMQPlotWidget(QtGui.QWidget):
         self.ZMQPlotTimer = QtCore.QTimer()
         self.ZMQPlotTimer.timeout.connect(self.ZMQPlotUpdater)
         self.ZMQPlotTimer.start(self.getZMQTimerFrequency())
-          
+
+    def getVerified(self):
+        return self.verified
+    def setVerified(self, value):
+        self.verified = value
+
 class RotationalControllerPlotWidget(QtGui.QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, position_frequency, parent=None):
         super(RotationalControllerPlotWidget, self).__init__(parent)
 
         # FREQUENCY HAS TO BE SAME AS SERVER'S FREQUENCY
         # Desired Frequency (Hz) = 1 / self.FREQUENCY
         # USE FOR TIME.SLEEP (s)
-        self.FREQUENCY = .025
+        self.FREQUENCY = position_frequency
 
         # Frequency to update plot (ms)
         # USE FOR TIMER.TIMER (ms)
