@@ -11,17 +11,19 @@ import cv2
 # Plot with fixed data moving right to left
 # Adjustable fixed x-axis, dynamic y-axis, data does not shrink
 class ZMQPlotWidget(QtGui.QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, ZMQ_address, ZMQ_topic, ZMQ_frequency, parent=None):
         super(ZMQPlotWidget, self).__init__(parent)
-
+        
+        self.verified = False
         # FREQUENCY HAS TO BE SAME AS SERVER'S FREQUENCY
         # Desired Frequency (Hz) = 1 / self.ZMQ_FREQUENCY
         # USE FOR TIME.SLEEP (s)
-        self.ZMQ_FREQUENCY = .025
+        self.ZMQ_FREQUENCY = ZMQ_frequency
 
         # Frequency to update plot (ms)
         # USE FOR TIMER.TIMER (ms)
         self.ZMQ_TIMER_FREQUENCY = self.ZMQ_FREQUENCY * 1000
+        self.dataTimeout = 1
 
         # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 0
         self.ZMQ_LEFT_X = -10
@@ -43,15 +45,37 @@ class ZMQPlotWidget(QtGui.QWidget):
         
         self.layout = QtGui.QGridLayout()
         self.layout.addWidget(self.ZMQPlot)
-
-        # Setup socket port and topic using pub/sub system
-        self.ZMQ_TCP_Port = "tcp://192.168.1.125:6002"
-        self.ZMQ_Topic = "10001"
-        self.ZMQContext = zmq.Context()
-        self.ZMQSocket = self.ZMQContext.socket(zmq.SUB)
-        self.ZMQSocket.connect(self.ZMQ_TCP_Port)
-        self.ZMQSocket.setsockopt(zmq.SUBSCRIBE, self.ZMQ_Topic)
         
+        # Setup socket port and topic using pub/sub system
+        self.ZMQ_TCP_Port = ZMQ_address
+        self.ZMQ_Topic = ZMQ_topic
+
+        self.initialCheckValidPort()
+        self.start()
+        
+    def initialCheckValidPort(self):
+        try:
+            context = zmq.Context()
+            socket = context.socket(zmq.SUB)
+            socket.connect(self.ZMQ_TCP_Port)
+            socket.setsockopt(zmq.SUBSCRIBE, self.ZMQ_Topic)
+            # Check for valid data within time interval in seconds (s)
+            time_end = time.time() + self.dataTimeout
+            while time.time() < time_end:
+                try:
+                    topic, data = socket.recv(zmq.NOBLOCK).split()
+                    self.updateZMQPlotAddress(self.ZMQ_TCP_Port, self.ZMQ_Topic)
+                    self.verified = True
+                    return
+                except zmq.ZMQError, e:
+                    # No data arrived
+                    if e.errno == zmq.EAGAIN:
+                        pass
+                    else:
+                        print("real error")
+        except:
+            self.verified = False
+
     def updateZMQPlotAddress(self, address, topic):
         self.ZMQ_TCP_Port = address 
         self.ZMQ_Topic = topic
@@ -61,23 +85,27 @@ class ZMQPlotWidget(QtGui.QWidget):
         self.ZMQSocket.setsockopt(zmq.SUBSCRIBE, self.ZMQ_Topic)
         
     def ZMQPlotUpdater(self):
-        # Receives (topic, data)
-        try:
-            self.topic, self.ZMQDataPoint = self.ZMQSocket.recv().split()
-            self.oldZMQDataPoint = self.ZMQDataPoint
-        except zmq.ZMQError, e:
-            # No data arrived
-            if e.errno == zmq.EAGAIN:
-                self.ZMQDataPoint = self.oldZMQDataPoint
+        if self.verified:
+            # Receives (topic, data)
+            try:
+                self.topic, self.ZMQDataPoint = self.ZMQSocket.recv().split()
+                self.oldZMQDataPoint = self.ZMQDataPoint
+            except zmq.ZMQError, e:
+                # No data arrived
+                if e.errno == zmq.EAGAIN:
+                    self.ZMQDataPoint = self.oldZMQDataPoint
 
-        if len(self.ZMQData) >= self.ZMQBuffer:
-            self.ZMQData.pop(0)
-        
-        self.ZMQData.append(float(self.ZMQDataPoint))
-        self.ZMQPlotter.setData(self.ZMQ_X_Axis[len(self.ZMQ_X_Axis) - len(self.ZMQData):], self.ZMQData)
+            if len(self.ZMQData) >= self.ZMQBuffer:
+                self.ZMQData.pop(0)
+            
+            self.ZMQData.append(float(self.ZMQDataPoint))
+            self.ZMQPlotter.setData(self.ZMQ_X_Axis[len(self.ZMQ_X_Axis) - len(self.ZMQData):], self.ZMQData)
     
     def getZMQPlotAddress(self):
         return self.ZMQ_TCP_Port
+
+    def getZMQTopic(self):
+        return self.ZMQ_Topic
     
     def getZMQPlotWidget(self):
         return self.ZMQPlot
@@ -93,19 +121,29 @@ class ZMQPlotWidget(QtGui.QWidget):
     def getZMQPlotLayout(self):
         return self.layout
 
+    def getVerified(self):
+        return self.verified
+
+    def setVerified(self, value):
+        self.verified = value
+
     def start(self):
         self.ZMQPlotTimer = QtCore.QTimer()
         self.ZMQPlotTimer.timeout.connect(self.ZMQPlotUpdater)
         self.ZMQPlotTimer.start(self.getZMQTimerFrequency())
-          
-class RotationalControllerPlotWidget(QtGui.QWidget):
-    def __init__(self, parent=None):
-        super(RotationalControllerPlotWidget, self).__init__(parent)
 
+class RotationalControllerPlotWidget(QtGui.QWidget):
+    def __init__(self, position_address, position_topic, position_frequency, parameter_address, parent=None):
+        super(RotationalControllerPlotWidget, self).__init__(parent)
+        
+        self.dataTimeout = 1
+        self.positionVerified = False
+        self.parameterVerified = False
+        self.fail = False
         # FREQUENCY HAS TO BE SAME AS SERVER'S FREQUENCY
         # Desired Frequency (Hz) = 1 / self.FREQUENCY
         # USE FOR TIME.SLEEP (s)
-        self.FREQUENCY = .025
+        self.FREQUENCY = position_frequency
 
         # Frequency to update plot (ms)
         # USE FOR TIMER.TIMER (ms)
@@ -118,7 +156,7 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
         self.buffer = int((abs(self.LEFT_X) + abs(self.RIGHT_X))/self.FREQUENCY)
         self.data = [] 
 
-        # Create ZMQ Plot Widget 
+        # Create Plot Widget 
         self.plot = pg.PlotWidget()
         self.plot.setXRange(self.LEFT_X, self.RIGHT_X)
         self.plot.setTitle('Rotational Controller Position')
@@ -131,13 +169,109 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
         self.layout = QtGui.QGridLayout()
         self.layout.addWidget(self.plot)
 
-    def plotUpdater(self, data):
-        self.dataPoint = float(data)
+        self.positionAddress = position_address
+        self.positionTopic = position_topic
+        self.parameterAddress = parameter_address
 
-        if len(self.data) >= self.buffer:
-            self.data.pop(0)
-        self.data.append(self.dataPoint)
-        self.plotter.setData(self.X_Axis[len(self.X_Axis) - len(self.data):], self.data)
+        self.initialCheckValidPositionPort()
+        self.initialCheckValidParameterPort()
+        self.readPositionThread()
+        self.start()
+
+    def initialCheckValidPositionPort(self):
+        try:
+            context = zmq.Context()
+            socket = context.socket(zmq.SUB)
+            socket.connect(self.positionAddress)
+            socket.setsockopt(zmq.SUBSCRIBE, self.positionTopic)
+            # Check for valid data within time interval in seconds (s)
+            time_end = time.time() + self.dataTimeout
+            while time.time() < time_end:
+                try:
+                    topic, data = socket.recv(zmq.NOBLOCK).split()
+                    self.updatePositionPlotAddress(self.positionAddress, self.positionTopic)
+                    self.positionVerified = True
+                    return
+                except zmq.ZMQError, e:
+                    # No data arrived
+                    if e.errno == zmq.EAGAIN:
+                        pass
+                    else:
+                        print("real error")
+        except:
+            self.positionVerified = False
+
+    def initialCheckValidParameterPort(self):
+        try:
+            context = zmq.Context()
+            socket = context.socket(zmq.REQ)
+            # Prevent program from hanging after closing
+            socket.setsockopt(zmq.LINGER, 0)
+            socket.connect(self.parameterAddress)
+            socket.send("info?")
+            # Check for valid data within time interval in seconds (s)
+            time_end = time.time() + self.dataTimeout
+            while time.time() < time_end:
+                try:
+                    parameter_information = [x.strip() for x in socket.recv(zmq.NOBLOCK).split(',')]
+                    self.velocityMin, self.velocityMax, self.accelerationMin, self.accelerationMax, self.positionMin, self.positionMax, self.homeFlag, self.units = parameter_information
+                    self.updateParameterPlotAddress(self.parameterAddress)
+                    self.parameterVerified = True
+                    return
+                except zmq.ZMQError, e:
+                    # No data arrived
+                    if e.errno == zmq.EAGAIN:
+                        pass
+                    else:
+                        print("real error")
+            self.fail = True
+        except:
+            self.parameterVerified = False
+        if self.fail:
+            QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'Initial handshake failed: Invalid parameterAddress value. Check motor.ini')
+            exit(1)
+
+    def updatePositionPlotAddress(self, address, topic): 
+        self.positionAddress = address
+        self.positionTopic = topic
+        self.positionContext = zmq.Context()
+        self.positionSocket = self.positionContext.socket(zmq.SUB)
+        self.positionSocket.connect(self.positionAddress)
+        self.positionSocket.setsockopt(zmq.SUBSCRIBE, self.positionTopic)
+        return (self.positionContext, self.positionSocket, self.positionTopic)
+
+    def updateParameterPlotAddress(self, address): 
+        self.parameterAddress = address
+        self.parameterContext = zmq.Context()
+        self.parameterSocket = self.parameterContext.socket(zmq.REQ)
+        # Prevent program from hanging after closing
+        self.parameterSocket.setsockopt(zmq.LINGER, 0)
+        self.parameterSocket.connect(self.parameterAddress)
+        self.parameterSocket.send('info?')
+        parameter_information = [x.strip() for x in self.parameterSocket.recv().split(',')]
+        self.velocityMin, self.velocityMax, self.accelerationMin, self.accelerationMax, self.positionMin, self.positionMax, self.homeFlag, self.units = parameter_information
+        return (self.parameterContext, self.parameterSocket)
+
+    def getParameterSocket(self):
+        if self.parameterVerified:
+            return self.parameterSocket
+        else: 
+            return None
+
+    def getPositionSocket(self):
+        if self.positionVerified:
+            return self.positionSocket
+        else:
+            return None
+
+    def plotUpdater(self):
+        if self.positionVerified:
+            self.dataPoint = float(self.currentPositionValue)
+
+            if len(self.data) >= self.buffer:
+                self.data.pop(0)
+            self.data.append(self.dataPoint)
+            self.plotter.setData(self.X_Axis[len(self.X_Axis) - len(self.data):], self.data)
     
     def getRotationalControllerFrequency(self):
         return self.FREQUENCY
@@ -151,230 +285,51 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
     def getRotationalControllerPlotWidget(self):
         return self.plot
 
-class PortSettingPopUpWidget(QtGui.QWidget):
-    def __init__(self, windowTitle, parent=None):
-        super(PortSettingPopUpWidget, self).__init__(parent)
+    def start(self):
+        self.positionUpdateTimer = QtCore.QTimer()
+        self.positionUpdateTimer.timeout.connect(self.plotUpdater)
+        self.positionUpdateTimer.start(self.getRotationalControllerTimerFrequency())
 
-        self.popUpWidth = 195
-        self.popUpHeight = 150
-        self.setFixedSize(self.popUpWidth, self.popUpHeight)
+    def readPositionThread(self):
+        self.currentPositionValue = 0
+        self.oldCurrentPositionValue = 0
+        self.positionUpdateThread = Thread(target=self.readPosition, args=())
+        self.positionUpdateThread.daemon = True
+        self.positionUpdateThread.start()
 
-        self.setWindowTitle(windowTitle)
-        self.position_address = ()
-        self.parameter_address = ()
-        self.plot_address = ()
-        self.tabs = QtGui.QTabWidget(self)
-        self.positionTab = QtGui.QWidget()
-        self.parameterTab = QtGui.QWidget()
-        self.plotTab = QtGui.QWidget()
+    def readPosition(self):
+        frequency = self.getRotationalControllerFrequency()
+        while True:
+            try:
+                topic, self.currentPositionValue = self.positionSocket.recv().split()
+                # Change to 0 since Rotational controller reports 0 as -0
+                if self.currentPositionValue == '-0.00':
+                    self.currentPositionValue = '0.00'
+                self.oldCurrentPositionValue = self.currentPositionValue
+            except:
+                self.currentPositionValue = self.oldCurrentPositionValue
+            time.sleep(frequency)
 
-        # Position
-        self.positionLayout = QtGui.QFormLayout()
-        self.position_TCPAddress = QtGui.QLineEdit()
-        self.position_TCPAddress.setMaxLength(15)
-        self.position_TCPPort = QtGui.QLineEdit()
-        self.position_TCPPort.setValidator(QtGui.QIntValidator())
-        self.position_TCPTopic = QtGui.QLineEdit()
-        self.position_TCPTopic.setValidator(QtGui.QIntValidator())
-        self.positionButtonLayout = QtGui.QHBoxLayout()
-        self.positionConnectButton = QtGui.QPushButton('Connect')
-        self.positionConnectButton.setStyleSheet('background-color: #3CB371')
-        self.positionConnectButton.clicked.connect(self.position_saveButton)
-        self.positionCancelButton = QtGui.QPushButton('Cancel')
-        self.positionCancelButton.clicked.connect(self.position_cancelButton)
-        self.positionButtonLayout.addWidget(self.positionConnectButton)
-        self.positionButtonLayout.addWidget(self.positionCancelButton)
+    def getParameterInformation(self):
+        return (self.velocityMin, self.velocityMax, self.accelerationMin, self.accelerationMax, self.positionMin, self.positionMax, self.homeFlag, self.units)
 
-        self.positionLayout.addRow("TCP Address", self.position_TCPAddress)
-        self.positionLayout.addRow("Port", self.position_TCPPort)
-        self.positionLayout.addRow("Topic", self.position_TCPTopic)
-        self.positionLayout.addRow(self.positionButtonLayout)
-        self.positionTab.setLayout(self.positionLayout)
+    def getCurrentPositionValue(self):
+        return self.currentPositionValue
 
-        # Parameter
-        self.parameterLayout = QtGui.QFormLayout() 
-        self.parameter_TCPAddress = QtGui.QLineEdit()
-        self.parameter_TCPAddress.setMaxLength(15)
-        self.parameter_TCPPort = QtGui.QLineEdit()
-        self.parameter_TCPPort.setValidator(QtGui.QIntValidator())
-        self.parameterButtonLayout = QtGui.QHBoxLayout()
-        self.parameterConnectButton = QtGui.QPushButton('Save')
-        self.parameterConnectButton.setStyleSheet('background-color: #3CB371')
-        self.parameterConnectButton.clicked.connect(self.parameter_saveButton)
-        self.parameterCancelButton = QtGui.QPushButton('Cancel')
-        self.parameterCancelButton.clicked.connect(self.parameter_cancelButton)
-        self.parameterButtonLayout.addWidget(self.parameterConnectButton)
-        self.parameterButtonLayout.addWidget(self.parameterCancelButton)
+    def getPositionVerified(self):
+        return self.positionVerified
 
-        self.parameterLayout.addRow("TCP Address", self.parameter_TCPAddress)
-        self.parameterLayout.addRow("Port", self.parameter_TCPPort)
-        self.parameterLayout.addRow(self.parameterButtonLayout)
-        self.parameterTab.setLayout(self.parameterLayout)
+    def getParameterVerified(self):
+        return self.parameterVerified
 
-        # Plot
-        self.plotLayout = QtGui.QFormLayout()
-        self.plot_TCPAddress = QtGui.QLineEdit()
-        self.plot_TCPAddress.setMaxLength(15)
-        self.plot_TCPPort = QtGui.QLineEdit()
-        self.plot_TCPPort.setValidator(QtGui.QIntValidator())
-        self.plot_TCPTopic = QtGui.QLineEdit()
-        self.plot_TCPTopic.setValidator(QtGui.QIntValidator())
-        self.plotButtonLayout = QtGui.QHBoxLayout()
-        self.plotConnectButton = QtGui.QPushButton('Connect')
-        self.plotConnectButton.setStyleSheet('background-color: #3CB371')
-        self.plotConnectButton.clicked.connect(self.plot_saveButton)
-        self.plotCancelButton = QtGui.QPushButton('Cancel')
-        self.plotCancelButton.clicked.connect(self.plot_cancelButton)
-        self.plotButtonLayout.addWidget(self.plotConnectButton)
-        self.plotButtonLayout.addWidget(self.plotCancelButton)
+    def setPositionVerified(self, value):
+        self.positionVerified = value
 
-        self.plotLayout.addRow("TCP Address", self.plot_TCPAddress)
-        self.plotLayout.addRow("Port", self.plot_TCPPort)
-        self.plotLayout.addRow("Topic", self.plot_TCPTopic)
-        self.plotLayout.addRow(self.plotButtonLayout)
-        self.plotTab.setLayout(self.plotLayout)
+    def setParameterVerified(self, value):
+        self.parameterVerified = value
 
-        self.tabs.addTab(self.positionTab, 'Position')
-        self.tabs.addTab(self.parameterTab, 'Parameters')
-        self.tabs.addTab(self.plotTab, 'Plot')
-         
-        self.setWindowModality(QtCore.Qt.ApplicationModal)
-        self.show()
-
-    def keyPressEvent(self, event):
-        if event.key() == QtCore.Qt.Key_Escape:
-            self.close()
-
-    def position_saveButton(self):
-        address = str(self.position_TCPAddress.text())
-        port = str(self.position_TCPPort.text())
-        topic = str(self.position_TCPTopic.text())
-        Thread(target=self.positionCheckValidPort, args=(address,port,topic)).start()
-        self.close()
-        
-    def position_cancelButton(self):
-        self.close()
-
-    def getPositionAddress(self):
-        return self.position_address
-    
-    def setPositionAddress(self, s):
-        self.position_address = s
-
-    def positionCheckValidPort(self, address, port, topic):
-        if address and port and topic:
-            position_address = "tcp://" + address + ":" + port
-            context = zmq.Context()
-            socket = context.socket(zmq.SUB)
-            socket.connect(position_address)
-            socket.setsockopt(zmq.SUBSCRIBE, topic)
-            # Check for valid data within 1 second
-            time_end = time.time() + 1
-            valid_flag = False
-            while time.time() < time_end:
-                try:
-                    topic, data = socket.recv().split()
-                    self.position_address = (address, port, topic)
-                    valid_flag = True
-                    break
-                except zmq.ZMQError, e:
-                    # No data arrived
-                    if e.errno == zmq.EAGAIN:
-                        pass
-                    else:
-                        print("real error")
-            if valid_flag == False:
-                self.position_address = (False)
-        else:
-            self.position_address = (False)
-
-    def parameter_saveButton(self):
-        address = str(self.parameter_TCPAddress.text())
-        port = str(self.parameter_TCPPort.text())
-        Thread(target=self.parameterCheckValidPort, args=(address,port)).start()
-        self.close()
-        
-    def parameter_cancelButton(self):
-        self.close()
-
-    def getParameterAddress(self):
-        return self.parameter_address
-    
-    def setParameterAddress(self, s):
-        self.parameter_address = s
-
-    def parameterCheckValidPort(self, address, port):
-        if address and port:
-            parameter_address = "tcp://" + address + ":" + port
-            context = zmq.Context()
-            socket = context.socket(zmq.REQ)
-            # Prevent program from hanging after closing
-            socket.setsockopt(zmq.LINGER, 0)
-            socket.connect(parameter_address)
-            socket.send("info?")
-            # Check for valid data within 1 second
-            time_end = time.time() + 1
-            valid_flag = False
-            while time.time() < time_end:
-                try:
-                    result = socket.recv().split(',')
-                    print(result)
-                    self.parameter_address = (address, port)
-                    valid_flag = True
-                    break
-                except zmq.ZMQError, e:
-                    # No data arrived
-                    if e.errno == zmq.EAGAIN:
-                        pass
-                    else:
-                        print("real error")
-            if valid_flag == False:
-                self.parameter_address = (False)
-        else:
-            self.parameter_address = (False)
-
-    def plot_saveButton(self):
-        address = str(self.plot_TCPAddress.text())
-        port = str(self.plot_TCPPort.text())
-        topic = str(self.plot_TCPTopic.text())
-        Thread(target=self.plotCheckValidPort, args=(address,port,topic)).start()
-        self.close()
-        
-    def plot_cancelButton(self):
-        self.close()
-
-    def getPlotAddress(self):
-        return self.plot_address
-    
-    def setPlotAddress(self, s):
-        self.plot_address = s
-
-    def plotCheckValidPort(self, address, port, topic):
-        if address and port and topic:
-            port_address = "tcp://" + address + ":" + port
-            context = zmq.Context()
-            socket = context.socket(zmq.SUB)
-            socket.connect(port_address)
-            socket.setsockopt(zmq.SUBSCRIBE, topic)
-            # Check for valid data within 1 second
-            time_end = time.time() + 1
-            valid_flag = False
-            while time.time() < time_end:
-                try:
-                    topic, data = socket.recv().split()
-                    self.plot_address = (address, port, topic)
-                    valid_flag = True
-                    break
-                except zmq.ZMQError, e:
-                    # No data arrived
-                    if e.errno == zmq.EAGAIN:
-                        pass
-                    else:
-                        print("real error")
-            if valid_flag == False:
-                self.plot_address = (False)
-        else:
-            self.plot_address = (False)
+    def getPositionTopic(self):
+        return self.positionTopic
 
 class VideoDisplayWidget(QtGui.QWidget):
     def __init__(self, parent=None):
@@ -429,5 +384,4 @@ class VideoDisplayWidget(QtGui.QWidget):
 
     def pauseCapture(self):
         self.timer.stop()
-
 
