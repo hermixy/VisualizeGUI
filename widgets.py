@@ -103,6 +103,9 @@ class ZMQPlotWidget(QtGui.QWidget):
     
     def getZMQPlotAddress(self):
         return self.ZMQ_TCP_Port
+
+    def getZMQTopic(self):
+        return self.ZMQ_Topic
     
     def getZMQPlotWidget(self):
         return self.ZMQPlot
@@ -118,20 +121,25 @@ class ZMQPlotWidget(QtGui.QWidget):
     def getZMQPlotLayout(self):
         return self.layout
 
+    def getVerified(self):
+        return self.verified
+
+    def setVerified(self, value):
+        self.verified = value
+
     def start(self):
         self.ZMQPlotTimer = QtCore.QTimer()
         self.ZMQPlotTimer.timeout.connect(self.ZMQPlotUpdater)
         self.ZMQPlotTimer.start(self.getZMQTimerFrequency())
 
-    def getVerified(self):
-        return self.verified
-    def setVerified(self, value):
-        self.verified = value
-
 class RotationalControllerPlotWidget(QtGui.QWidget):
-    def __init__(self, position_frequency, parent=None):
+    def __init__(self, position_address, position_topic, position_frequency, parameter_address, parent=None):
         super(RotationalControllerPlotWidget, self).__init__(parent)
-
+        
+        self.dataTimeout = 1
+        self.positionVerified = False
+        self.parameterVerified = False
+        self.fail = False
         # FREQUENCY HAS TO BE SAME AS SERVER'S FREQUENCY
         # Desired Frequency (Hz) = 1 / self.FREQUENCY
         # USE FOR TIME.SLEEP (s)
@@ -148,7 +156,7 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
         self.buffer = int((abs(self.LEFT_X) + abs(self.RIGHT_X))/self.FREQUENCY)
         self.data = [] 
 
-        # Create ZMQ Plot Widget 
+        # Create Plot Widget 
         self.plot = pg.PlotWidget()
         self.plot.setXRange(self.LEFT_X, self.RIGHT_X)
         self.plot.setTitle('Rotational Controller Position')
@@ -161,13 +169,109 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
         self.layout = QtGui.QGridLayout()
         self.layout.addWidget(self.plot)
 
-    def plotUpdater(self, data):
-        self.dataPoint = float(data)
+        self.positionAddress = position_address
+        self.positionTopic = position_topic
+        self.parameterAddress = parameter_address
 
-        if len(self.data) >= self.buffer:
-            self.data.pop(0)
-        self.data.append(self.dataPoint)
-        self.plotter.setData(self.X_Axis[len(self.X_Axis) - len(self.data):], self.data)
+        self.initialCheckValidPositionPort()
+        self.initialCheckValidParameterPort()
+        self.readPositionThread()
+        self.start()
+
+    def initialCheckValidPositionPort(self):
+        try:
+            context = zmq.Context()
+            socket = context.socket(zmq.SUB)
+            socket.connect(self.positionAddress)
+            socket.setsockopt(zmq.SUBSCRIBE, self.positionTopic)
+            # Check for valid data within time interval in seconds (s)
+            time_end = time.time() + self.dataTimeout
+            while time.time() < time_end:
+                try:
+                    topic, data = socket.recv(zmq.NOBLOCK).split()
+                    self.updatePositionPlotAddress(self.positionAddress, self.positionTopic)
+                    self.positionVerified = True
+                    return
+                except zmq.ZMQError, e:
+                    # No data arrived
+                    if e.errno == zmq.EAGAIN:
+                        pass
+                    else:
+                        print("real error")
+        except:
+            self.positionVerified = False
+
+    def initialCheckValidParameterPort(self):
+        try:
+            context = zmq.Context()
+            socket = context.socket(zmq.REQ)
+            # Prevent program from hanging after closing
+            socket.setsockopt(zmq.LINGER, 0)
+            socket.connect(self.parameterAddress)
+            socket.send("info?")
+            # Check for valid data within time interval in seconds (s)
+            time_end = time.time() + self.dataTimeout
+            while time.time() < time_end:
+                try:
+                    parameter_information = [x.strip() for x in socket.recv(zmq.NOBLOCK).split(',')]
+                    self.velocityMin, self.velocityMax, self.accelerationMin, self.accelerationMax, self.positionMin, self.positionMax, self.homeFlag, self.units = parameter_information
+                    self.updateParameterPlotAddress(self.parameterAddress)
+                    self.parameterVerified = True
+                    return
+                except zmq.ZMQError, e:
+                    # No data arrived
+                    if e.errno == zmq.EAGAIN:
+                        pass
+                    else:
+                        print("real error")
+            self.fail = True
+        except:
+            self.parameterVerified = False
+        if self.fail:
+            QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'Initial handshake failed: Invalid parameterAddress value. Check motor.ini')
+            exit(1)
+
+    def updatePositionPlotAddress(self, address, topic): 
+        self.positionAddress = address
+        self.positionTopic = topic
+        self.positionContext = zmq.Context()
+        self.positionSocket = self.positionContext.socket(zmq.SUB)
+        self.positionSocket.connect(self.positionAddress)
+        self.positionSocket.setsockopt(zmq.SUBSCRIBE, self.positionTopic)
+        return (self.positionContext, self.positionSocket, self.positionTopic)
+
+    def updateParameterPlotAddress(self, address): 
+        self.parameterAddress = address
+        self.parameterContext = zmq.Context()
+        self.parameterSocket = self.parameterContext.socket(zmq.REQ)
+        # Prevent program from hanging after closing
+        self.parameterSocket.setsockopt(zmq.LINGER, 0)
+        self.parameterSocket.connect(self.parameterAddress)
+        self.parameterSocket.send('info?')
+        parameter_information = [x.strip() for x in self.parameterSocket.recv().split(',')]
+        self.velocityMin, self.velocityMax, self.accelerationMin, self.accelerationMax, self.positionMin, self.positionMax, self.homeFlag, self.units = parameter_information
+        return (self.parameterContext, self.parameterSocket)
+
+    def getParameterSocket(self):
+        if self.parameterVerified:
+            return self.parameterSocket
+        else: 
+            return None
+
+    def getPositionSocket(self):
+        if self.positionVerified:
+            return self.positionSocket
+        else:
+            return None
+
+    def plotUpdater(self):
+        if self.positionVerified:
+            self.dataPoint = float(self.currentPositionValue)
+
+            if len(self.data) >= self.buffer:
+                self.data.pop(0)
+            self.data.append(self.dataPoint)
+            self.plotter.setData(self.X_Axis[len(self.X_Axis) - len(self.data):], self.data)
     
     def getRotationalControllerFrequency(self):
         return self.FREQUENCY
@@ -180,6 +284,52 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
 
     def getRotationalControllerPlotWidget(self):
         return self.plot
+
+    def start(self):
+        self.positionUpdateTimer = QtCore.QTimer()
+        self.positionUpdateTimer.timeout.connect(self.plotUpdater)
+        self.positionUpdateTimer.start(self.getRotationalControllerTimerFrequency())
+
+    def readPositionThread(self):
+        self.currentPositionValue = 0
+        self.oldCurrentPositionValue = 0
+        self.positionUpdateThread = Thread(target=self.readPosition, args=())
+        self.positionUpdateThread.daemon = True
+        self.positionUpdateThread.start()
+
+    def readPosition(self):
+        frequency = self.getRotationalControllerFrequency()
+        while True:
+            try:
+                topic, self.currentPositionValue = self.positionSocket.recv().split()
+                # Change to 0 since Rotational controller reports 0 as -0
+                if self.currentPositionValue == '-0.00':
+                    self.currentPositionValue = '0.00'
+                self.oldCurrentPositionValue = self.currentPositionValue
+            except:
+                self.currentPositionValue = self.oldCurrentPositionValue
+            time.sleep(frequency)
+
+    def getParameterInformation(self):
+        return (self.velocityMin, self.velocityMax, self.accelerationMin, self.accelerationMax, self.positionMin, self.positionMax, self.homeFlag, self.units)
+
+    def getCurrentPositionValue(self):
+        return self.currentPositionValue
+
+    def getPositionVerified(self):
+        return self.positionVerified
+
+    def getParameterVerified(self):
+        return self.parameterVerified
+
+    def setPositionVerified(self, value):
+        self.positionVerified = value
+
+    def setParameterVerified(self, value):
+        self.parameterVerified = value
+
+    def getPositionTopic(self):
+        return self.positionTopic
 
 class VideoDisplayWidget(QtGui.QWidget):
     def __init__(self, parent=None):
