@@ -139,7 +139,6 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
         self.dataTimeout = 1
         self.positionVerified = False
         self.parameterVerified = False
-        self.fail = False
         # FREQUENCY HAS TO BE SAME AS SERVER'S FREQUENCY
         # Desired Frequency (Hz) = 1 / self.FREQUENCY
         # USE FOR TIME.SLEEP (s)
@@ -224,12 +223,8 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
                         pass
                     else:
                         print("real error")
-            self.fail = True
         except:
             self.parameterVerified = False
-        if self.fail:
-            QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'Initial handshake failed: Invalid parameterAddress value. Check motor.ini')
-            exit(1)
 
     def updatePositionPlotAddress(self, address, topic): 
         self.positionAddress = address

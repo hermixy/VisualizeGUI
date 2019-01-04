@@ -84,6 +84,9 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         self.popUpHeight = 150
         self.setFixedSize(self.popUpWidth, self.popUpHeight)
 
+        self.styleSettingValid = "border-radius: 6px; padding:5px; background-color: #5fba7d"
+        self.styleSettingInvalid = "border-radius: 6px; padding:5px; background-color: #f78380"
+
         self.setWindowTitle(windowTitle)
         self.tabs = QtGui.QTabWidget(self)
         self.positionTab = QtGui.QWidget()
@@ -186,6 +189,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         global statusBar
         global motorPlot
         global position_context, position_socket, position_topic
+        global positionStatus
 
         if address and port and topic:
             new_position_address = "tcp://" + address + ":" + port
@@ -205,6 +209,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                         writeSettings('ROTATIONAL_CONTROLLER', settings) 
                         self.status = ('success', position_address)
                         motorPlot.setPositionVerified(True)
+                        positionStatus.setStyleSheet(self.styleSettingValid)
                         return
                     except zmq.ZMQError, e:
                         # No data arrived
@@ -231,6 +236,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
     def parameterCheckValidPort(self, address, port):
         global parameter_address
         global motorPlot
+        global parameterStatus
         
         if address and port:
             new_parameter_address = "tcp://" + address + ":" + port
@@ -252,6 +258,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                         settings = {'parameterAddress': new_parameter_address}
                         writeSettings('ROTATIONAL_CONTROLLER', settings) 
                         self.status = ('success', parameter_address)
+                        parameterStatus.setStyleSheet(self.styleSettingValid)
                         return
                     except zmq.ZMQError, e:
                         # No data arrived
@@ -284,6 +291,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
 
     def plotCheckValidPort(self, address, port, topic):
         global plot
+        global plotStatus
         
         if address and port and topic:
             new_plot_address = "tcp://" + address + ":" + port
@@ -303,6 +311,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                         settings = {'ZMQAddress': new_plot_address, 'ZMQTopic': topic}
                         writeSettings('ZMQ_PLOT', settings) 
                         self.status = ('success', new_plot_address)
+                        plotStatus.setStyleSheet(self.styleSettingValid)
                         return
                     except zmq.ZMQError, e:
                         # No data arrived
@@ -322,6 +331,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
 
 # Move rotational controller with selected values
 def moveButton():
+    global statusBar
     def moveButtonThread():
         global motorPlot
         global parameter_socket
@@ -488,26 +498,51 @@ def parametersUpdate():
     global velocity
     global acceleration
     global motorPlot
+    global home
     
     if motorPlot.getParameterVerified():
         position.clear()
         velocity.clear()
         acceleration.clear()
         velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units = motorPlot.getParameterInformation()
+        if homeFlag == 'false':
+            home.setEnabled(False)
+        else:
+            home.setEnabled(True)
         position.setValidator(QtGui.QIntValidator(int(positionMin), int(positionMax)))
         velocity.setValidator(QtGui.QIntValidator(int(velocityMin), int(velocityMax)))
         acceleration.setValidator(QtGui.QIntValidator(int(accelerationMin), int(accelerationMax)))
+
+def initStatusColors():
+    global positionStatus, parameterStatus, plotStatus
+    global plot, motorPlot
+
+    styleSettingValid = "border-radius: 6px; padding:5px; background-color: #5fba7d"
+    styleSettingInvalid = "border-radius: 6px; padding:5px; background-color: #f78380"
+
+    if plot.getVerified():
+        plotStatus.setStyleSheet(styleSettingValid)
+    else:
+        plotStatus.setStyleSheet(styleSettingInvalid)
+    if motorPlot.getPositionVerified():
+        positionStatus.setStyleSheet(styleSettingValid)
+    else:
+        positionStatus.setStyleSheet(styleSettingInvalid)
+    if motorPlot.getParameterVerified():
+        parameterStatus.setStyleSheet(styleSettingValid)
+    else:
+        parameterStatus.setStyleSheet(styleSettingInvalid)
 
 def initGlobalVariables():
     global velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units
     global motorPlot
     global parameter_socket, position_socket
     if motorPlot.getParameterVerified():
-
         velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units = motorPlot.getParameterInformation()
         parameter_socket = motorPlot.getParameterSocket()
     if motorPlot.getPositionVerified():
         position_socket = motorPlot.getPositionSocket()
+
 # =====================================================================
 # Main GUI Application
 # =====================================================================
@@ -528,7 +563,6 @@ statusBar.setSizeGripEnabled(False)
 plot = ZMQPlotWidget(ZMQ_address, ZMQ_topic, ZMQ_frequency)
 motorPlot = RotationalControllerPlotWidget(position_address, position_topic, position_frequency, parameter_address)
 initGlobalVariables()
-# Establish ZMQ socket connections 
 
 # Create and set widget layout
 # Main widget container
@@ -539,7 +573,8 @@ mw.setCentralWidget(cw)
 l = QtGui.QGridLayout()
 
 # Prevent window from being maximized
-mw.setFixedSize(cw.size())
+#mw.setFixedSize(cw.size())
+mw.setFixedSize(700,550)
 
 # Enable zoom in for selected box region
 pg.setConfigOption('leftButtonPan', False)
@@ -578,6 +613,14 @@ addPresetAction.triggered.connect(addPresetSettingsButton)
 fm.addAction(addPresetAction)
 
 # GUI elements
+statusLabel = QtGui.QLabel('Status')
+positionStatus = QtGui.QLabel('position')
+positionStatus.setAlignment(QtCore.Qt.AlignCenter)
+parameterStatus = QtGui.QLabel('parameter')
+parameterStatus.setAlignment(QtCore.Qt.AlignCenter)
+plotStatus = QtGui.QLabel('plot')
+plotStatus.setAlignment(QtCore.Qt.AlignCenter)
+
 portSettings = QtGui.QPushButton('IP/Port Settings')
 portSettings.clicked.connect(changeIPPortSettingsButton)
 
@@ -599,7 +642,6 @@ position.setAlignment(QtCore.Qt.AlignLeft)
 currentPositionLabel = QtGui.QLabel()
 currentPositionLabel.setText('Current Position')
 currentPosition = QtGui.QLabel()
-#currentPosition.setText(currentPositionValue)
 
 move = QtGui.QPushButton('Move')
 move.clicked.connect(moveButton)
@@ -628,24 +670,30 @@ presetLayout.addWidget(presetName)
 presetLayout.addWidget(presetButton)
 
 parametersUpdate()
+initStatusColors()
 
 # Layout
-l.addWidget(portSettings,0,0,1,4)
-l.addWidget(velocityLabel,1,0,1,2)
-l.addWidget(velocity,1,2,1,2)
-l.addWidget(accelerationLabel,2,0,1,2)
-l.addWidget(acceleration,2,2,1,2)
-l.addWidget(positionLabel,3,0,1,2)
-l.addWidget(position,3,2,1,2)
-l.addWidget(currentPositionLabel,4,0,1,2)
+l.addWidget(statusLabel,0,0,1,1)
+l.addWidget(positionStatus,0,1,1,1)
+l.addWidget(parameterStatus,0,2,1,1)
+l.addWidget(plotStatus,0,3,1,1)
 
-l.addWidget(currentPosition,4,2,1,2)
-l.addWidget(move,5,0,1,4)
-l.addWidget(home,6,0,1,4)
-l.addWidget(presetLabel,7,0,1,1)
-l.addWidget(presets,7,1,1,1)
-l.addWidget(presetName,7,2,1,1)
-l.addWidget(presetButton,7,3,1,1)
+l.addWidget(portSettings,1,0,1,4)
+l.addWidget(velocityLabel,2,0,1,2)
+l.addWidget(velocity,2,2,1,2)
+l.addWidget(accelerationLabel,3,0,1,2)
+l.addWidget(acceleration,3,2,1,2)
+l.addWidget(positionLabel,4,0,1,2)
+l.addWidget(position,4,2,1,2)
+l.addWidget(currentPositionLabel,5,0,1,2)
+
+l.addWidget(currentPosition,5,2,1,2)
+l.addWidget(move,6,0,1,4)
+l.addWidget(home,7,0,1,4)
+l.addWidget(presetLabel,8,0,1,1)
+l.addWidget(presets,8,1,1,1)
+l.addWidget(presetName,8,2,1,1)
+l.addWidget(presetButton,8,3,1,1)
 
 # Start internal timers and threads 
 positionUpdateTimer = QtCore.QTimer()
