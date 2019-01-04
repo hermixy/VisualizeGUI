@@ -100,6 +100,9 @@ class ZMQPlotWidget(QtGui.QWidget):
             
             self.ZMQData.append(float(self.ZMQDataPoint))
             self.ZMQPlotter.setData(self.ZMQ_X_Axis[len(self.ZMQ_X_Axis) - len(self.ZMQData):], self.ZMQData)
+
+    def clearZMQPlot(self):
+        self.ZMQData = []
     
     def getZMQPlotAddress(self):
         return self.ZMQ_TCP_Port
@@ -280,6 +283,9 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
                 self.data.pop(0)
             self.data.append(self.dataPoint)
             self.plotter.setData(self.X_Axis[len(self.X_Axis) - len(self.data):], self.data)
+
+    def clearRotationalControllerPlot(self):
+        self.data = []
 
     def getParameterSocket(self):
         if self.parameterVerified:

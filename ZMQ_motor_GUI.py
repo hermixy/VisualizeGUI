@@ -24,7 +24,9 @@ import configparser
 def readSettings():
     global position_address, position_topic, position_frequency, parameter_address
     global ZMQ_address, ZMQ_topic, ZMQ_frequency
+    global saveSettingsFlag
     
+    saveSettingsFlag = False
     # Read in each section and parse information
     try:
         config = configparser.ConfigParser()
@@ -58,12 +60,15 @@ def readSettings():
 
 # Write port settings into motor.ini file with any new connection
 def writeSettings(key, table):
-    parser = configparser.SafeConfigParser()
-    parser.read('motor.ini')
-    for k in table:
-        parser.set(key, k, table[k])
-    with open('motor.ini', 'w+') as configfile:
-        parser.write(configfile)
+    global saveSettingsFlag
+    
+    if saveSettingsFlag:
+        parser = configparser.SafeConfigParser()
+        parser.read('motor.ini')
+        for k in table:
+            parser.set(key, k, table[k])
+        with open('motor.ini', 'w+') as configfile:
+            parser.write(configfile)
 
 # Create empty motor.ini file if doesn't exist
 def createEmptySettingsFile():
@@ -77,6 +82,18 @@ def createEmptySettingsFile():
                           'ZMQFrequency': '' }
     with open('motor.ini', 'w') as configfile:
         config.write(configfile)
+
+# Toggle save or discard saving port settings to motor.ini
+def writePortSettingsToggle():
+    global saveSettingsFlag
+    global statusBar
+
+    if saveSettingsFlag:
+        saveSettingsFlag = False
+        statusBar.showMessage('Write to motor.ini disabled', 4000)
+    else: 
+        saveSettingsFlag = True
+        statusBar.showMessage('Write to motor.ini enabled', 4000)
 
 # =====================================================================
 # Port connection popup widget  
@@ -544,6 +561,20 @@ def initGlobalVariables():
         position_socket = motorPlot.getPositionSocket()
 
 # =====================================================================
+# Utility Functions 
+# =====================================================================
+
+# Clear plot data 
+def clearPlots():
+    global plot
+    global motorPlot
+    global statusBar
+
+    plot.clearZMQPlot()
+    motorPlot.clearRotationalControllerPlot()
+    statusBar.showMessage('Plots cleared', 4000)
+
+# =====================================================================
 # Main GUI Application
 # =====================================================================
 
@@ -590,40 +621,60 @@ mw.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
 
 # Menubar/Toolbar
 mb = mw.menuBar()
-fm = mb.addMenu('&File')
+fileMenu = mb.addMenu('&File')
+formatMenu = mb.addMenu('&Format')
 
 # File menu
-exitAction = QtGui.QAction('Exit', mw)
-exitAction.setShortcut('Ctrl+Q')
-exitAction.setStatusTip('Exit application')
-exitAction.triggered.connect(QtGui.qApp.quit)
-fm.addAction(exitAction)
+portChangeAction = QtGui.QAction('Change Port Settings', mw)
+portChangeAction.setShortcut('Ctrl+P')
+portChangeAction.setStatusTip('Change position, parameter, or plot port settings')
+portChangeAction.triggered.connect(changeIPPortSettingsButton)
+fileMenu.addAction(portChangeAction)
 
 moveAction = QtGui.QAction('Move', mw)
 moveAction.setShortcut('Ctrl+M')
-moveAction.setStatusTip('Move')
+moveAction.setStatusTip('Move to specified position')
 moveAction.triggered.connect(moveButton)
-fm.addAction(moveAction)
+fileMenu.addAction(moveAction)
 
 homeAction = QtGui.QAction('Home', mw)
 homeAction.setShortcut('Ctrl+H')
-homeAction.setStatusTip('Home')
+homeAction.setStatusTip('Reset rotational controller to home position')
 homeAction.triggered.connect(homeButton)
-fm.addAction(homeAction)
+fileMenu.addAction(homeAction)
 
 addPresetAction = QtGui.QAction('Add Preset', mw)
 addPresetAction.setShortcut('Ctrl+A')
 addPresetAction.setStatusTip('Save current values into a preset setting')
 addPresetAction.triggered.connect(addPresetSettingsButton)
-fm.addAction(addPresetAction)
+fileMenu.addAction(addPresetAction)
+
+exitAction = QtGui.QAction('Exit', mw)
+exitAction.setShortcut('Ctrl+Q')
+exitAction.setStatusTip('Exit application')
+exitAction.triggered.connect(QtGui.qApp.quit)
+fileMenu.addAction(exitAction)
+
+# Format Menu
+writeToFileToggle = QtGui.QAction('Save Port Settings', mw, checkable=True)
+writeToFileToggle.setShortcut('Ctrl+S')
+writeToFileToggle.setStatusTip('Save port setting changes to motor.ini')
+writeToFileToggle.triggered.connect(writePortSettingsToggle)
+formatMenu.addAction(writeToFileToggle)
+
+clearGraphAction = QtGui.QAction('Clear Plots', mw)
+clearGraphAction.setShortcut('Ctrl+C')
+clearGraphAction.setStatusTip('Clear current plot views')
+clearGraphAction.triggered.connect(clearPlots)
+formatMenu.addAction(clearGraphAction)
 
 # GUI elements
-statusLabel = QtGui.QLabel('Status')
-positionStatus = QtGui.QLabel('position')
+statusLabel = QtGui.QLabel('Port Status')
+positionStatus = QtGui.QLabel('Position')
 positionStatus.setAlignment(QtCore.Qt.AlignCenter)
-parameterStatus = QtGui.QLabel('parameter')
+parameterStatus = QtGui.QLabel('Parameter')
 parameterStatus.setAlignment(QtCore.Qt.AlignCenter)
-plotStatus = QtGui.QLabel('plot')
+plotStatus = QtGui.QLabel('Plot')
 plotStatus.setAlignment(QtCore.Qt.AlignCenter)
 
 portSettings = QtGui.QPushButton('IP/Port Settings')
