@@ -247,39 +247,6 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
         self.velocityMin, self.velocityMax, self.accelerationMin, self.accelerationMax, self.positionMin, self.positionMax, self.homeFlag, self.units = parameter_information
         return (self.parameterContext, self.parameterSocket)
 
-    def getParameterSocket(self):
-        if self.parameterVerified:
-            return self.parameterSocket
-        else: 
-            return None
-
-    def getPositionSocket(self):
-        if self.positionVerified:
-            return self.positionSocket
-        else:
-            return None
-
-    def plotUpdater(self):
-        if self.positionVerified:
-            self.dataPoint = float(self.currentPositionValue)
-
-            if len(self.data) >= self.buffer:
-                self.data.pop(0)
-            self.data.append(self.dataPoint)
-            self.plotter.setData(self.X_Axis[len(self.X_Axis) - len(self.data):], self.data)
-    
-    def getRotationalControllerFrequency(self):
-        return self.FREQUENCY
-    
-    def getRotationalControllerTimerFrequency(self):
-        return self.TIMER_FREQUENCY
-
-    def getRotationalControllerLayout(self):
-        return self.layout
-
-    def getRotationalControllerPlotWidget(self):
-        return self.plot
-
     def start(self):
         self.positionUpdateTimer = QtCore.QTimer()
         self.positionUpdateTimer.timeout.connect(self.plotUpdater)
@@ -304,6 +271,39 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
             except:
                 self.currentPositionValue = self.oldCurrentPositionValue
             time.sleep(frequency)
+
+    def plotUpdater(self):
+        if self.positionVerified:
+            self.dataPoint = float(self.currentPositionValue)
+
+            if len(self.data) >= self.buffer:
+                self.data.pop(0)
+            self.data.append(self.dataPoint)
+            self.plotter.setData(self.X_Axis[len(self.X_Axis) - len(self.data):], self.data)
+
+    def getParameterSocket(self):
+        if self.parameterVerified:
+            return self.parameterSocket
+        else: 
+            return None
+
+    def getPositionSocket(self):
+        if self.positionVerified:
+            return self.positionSocket
+        else:
+            return None
+
+    def getRotationalControllerFrequency(self):
+        return self.FREQUENCY
+    
+    def getRotationalControllerTimerFrequency(self):
+        return self.TIMER_FREQUENCY
+
+    def getRotationalControllerLayout(self):
+        return self.layout
+
+    def getRotationalControllerPlotWidget(self):
+        return self.plot
 
     def getParameterInformation(self):
         return (self.velocityMin, self.velocityMax, self.accelerationMin, self.accelerationMax, self.positionMin, self.positionMax, self.homeFlag, self.units)
@@ -352,6 +352,7 @@ class VideoDisplayWidget(QtGui.QWidget):
 
         self.videoFrame = QtGui.QLabel()
         self.layout.addWidget(self.videoFrame)
+
     def getVideoDisplayLayout(self):
         return self.layout
 
@@ -360,12 +361,14 @@ class VideoDisplayWidget(QtGui.QWidget):
             self.capture = cv2.VideoCapture(str(self.videoFileName))
         else:
             self.start()
+
     def loadVideoFile(self):
         try:
             self.videoFileName = QtGui.QFileDialog.getOpenFileName(self, 'Select .h264 Video File')
             self.isVideoFileLoaded = True
         except:
             print("Please select a .h264 file")
+
     def nextFrameSlot(self):
         status, frame = self.capture.read()
         img = QtGui.QImage(frame, frame.shape[1], frame.shape[0], QtGui.QImage.Format_RGB888).rgbSwapped()
