@@ -103,6 +103,9 @@ class ZMQPlotWidget(QtGui.QWidget):
 
     def clearZMQPlot(self):
         self.ZMQData = []
+
+    def changePlotColor(self, color):
+        self.ZMQPlotter.setPen(color)
     
     def getZMQPlotAddress(self):
         return self.ZMQ_TCP_Port
@@ -287,6 +290,9 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
     def clearRotationalControllerPlot(self):
         self.data = []
 
+    def changePlotColor(self, color):
+        self.plotter.setPen(color)
+
     def getParameterSocket(self):
         if self.parameterVerified:
             return self.parameterSocket
@@ -331,6 +337,13 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
 
     def getPositionTopic(self):
         return self.positionTopic
+
+class PlotColorWidget(QtGui.QColorDialog):
+    def __init__(self, plotObject, parent=None):
+        super(PlotColorWidget, self).__init__(parent)
+        # Opens color palette selector
+        self.palette = self.getColor()
+        plotObject.changePlotColor(str(self.palette.name()))
 
 class VideoDisplayWidget(QtGui.QWidget):
     def __init__(self, parent=None):

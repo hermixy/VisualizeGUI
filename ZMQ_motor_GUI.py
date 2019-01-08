@@ -8,6 +8,7 @@ from PyQt4 import QtCore, QtGui
 from PyQt4.QtGui import QSizePolicy
 from widgets import ZMQPlotWidget 
 from widgets import RotationalControllerPlotWidget 
+from widgets import PlotColorWidget 
 import pyqtgraph as pg
 import zmq
 import numpy as np
@@ -574,6 +575,12 @@ def clearPlots():
     motorPlot.clearRotationalControllerPlot()
     statusBar.showMessage('Plots cleared', 4000)
 
+# Opens color palette selector to change color
+def changePlotColor(plotObject):
+    def changePlotColorThread():
+        plotColor = PlotColorWidget(plotObject)
+    Thread(target=changePlotColorThread(), args=()).start()
+
 # =====================================================================
 # Main GUI Application
 # =====================================================================
@@ -622,6 +629,7 @@ mw.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
 # Menubar/Toolbar
 mb = mw.menuBar()
 fileMenu = mb.addMenu('&File')
+displayMenu = mb.addMenu('&Display')
 formatMenu = mb.addMenu('&Format')
 
 # File menu
@@ -655,18 +663,29 @@ exitAction.setStatusTip('Exit application')
 exitAction.triggered.connect(QtGui.qApp.quit)
 fileMenu.addAction(exitAction)
 
+# Display Menu
+clearGraphAction = QtGui.QAction('Clear Plots', mw)
+clearGraphAction.setShortcut('Ctrl+C')
+clearGraphAction.setStatusTip('Clear current plot views')
+clearGraphAction.triggered.connect(clearPlots)
+displayMenu.addAction(clearGraphAction)
+
+changeZMQPlotColorAction = QtGui.QAction('Change ZMQ Plot Color', mw)
+changeZMQPlotColorAction.setStatusTip('Change ZMQ plot color')
+changeZMQPlotColorAction.triggered.connect(lambda: changePlotColor(plot))
+displayMenu.addAction(changeZMQPlotColorAction)
+
+changeRotationalControllerPlotColorAction = QtGui.QAction('Change Rotational Controller Plot Color ', mw)
+changeRotationalControllerPlotColorAction.setStatusTip('Change rotational controller plot color')
+changeRotationalControllerPlotColorAction.triggered.connect(lambda: changePlotColor(motorPlot))
+displayMenu.addAction(changeRotationalControllerPlotColorAction)
+
 # Format Menu
 writeToFileToggle = QtGui.QAction('Save Port Settings', mw, checkable=True)
 writeToFileToggle.setShortcut('Ctrl+S')
 writeToFileToggle.setStatusTip('Save port setting changes to motor.ini')
 writeToFileToggle.triggered.connect(writePortSettingsToggle)
 formatMenu.addAction(writeToFileToggle)
-
-clearGraphAction = QtGui.QAction('Clear Plots', mw)
-clearGraphAction.setShortcut('Ctrl+C')
-clearGraphAction.setStatusTip('Clear current plot views')
-clearGraphAction.triggered.connect(clearPlots)
-formatMenu.addAction(clearGraphAction)
 
 # GUI elements
 statusLabel = QtGui.QLabel('Port Status')
