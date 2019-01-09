@@ -343,7 +343,9 @@ class PlotColorWidget(QtGui.QColorDialog):
         super(PlotColorWidget, self).__init__(parent)
         # Opens color palette selector
         self.palette = self.getColor()
-        plotObject.changePlotColor(str(self.palette.name()))
+        self.color = str(self.palette.name())
+        if self.color != '#000000':
+            plotObject.changePlotColor(self.color)
 
 class VideoStreamWidget(QtGui.QWidget):
     def __init__(self, parent=None):
