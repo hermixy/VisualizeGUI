@@ -35,6 +35,7 @@ class ZMQPlotWidget(QtGui.QWidget):
         
         # Create ZMQ Plot Widget
         self.ZMQPlot = pg.PlotWidget()
+        self.ZMQPlot.plotItem.setMouseEnabled(x=False, y=False)
         self.ZMQPlot.setXRange(self.ZMQ_LEFT_X, self.ZMQ_RIGHT_X)
         self.ZMQPlot.setTitle('ZMQ Plot')
         self.ZMQPlot.setLabel('left', 'Value')
@@ -163,6 +164,7 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
 
         # Create Plot Widget 
         self.plot = pg.PlotWidget()
+        self.plot.plotItem.setMouseEnabled(x=False, y=False)
         self.plot.setXRange(self.LEFT_X, self.RIGHT_X)
         self.plot.setTitle('Rotational Controller Position')
         self.plot.setLabel('left', 'Value')
