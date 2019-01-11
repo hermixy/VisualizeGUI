@@ -6,6 +6,75 @@ import imutils
 import pyqtgraph as pg
 import sys
 
+class CrosshairWidget(QtGui.QWidget):
+    def __init__(self, parent=None):
+        super(CrosshairWidget, self).__init__(parent)
+        
+        # Create the crosshair (invisible plot)
+        self.crosshairPlot = pg.PlotWidget()
+        self.crosshairPlot.setBackground(background=None)
+
+        self.crosshairPlot.plotItem.hideAxis('bottom') 
+        self.crosshairPlot.plotItem.hideAxis('left') 
+        self.crosshairPlot.plotItem.hideAxis('right') 
+        self.crosshairPlot.plotItem.hideAxis('top')
+        self.crosshairPlot.plotItem.setMouseEnabled(x=False, y=False)
+
+        self.crosshairColor = (196,220,255)
+
+        self.layout = QtGui.QGridLayout()
+        self.layout.addWidget(self.crosshairPlot)
+       
+        # Create the crosshair
+        self.crosshairPlot.plotItem.setAutoVisible(y=True)
+        self.vLine = pg.InfiniteLine(angle=90)
+        self.hLine = pg.InfiniteLine(angle=0, movable=False)
+        self.vLine.setPen(self.crosshairColor)
+        self.hLine.setPen(self.crosshairColor)
+        self.crosshairPlot.setAutoVisible(y=True)
+        self.crosshairPlot.addItem(self.vLine, ignoreBounds=True)
+        self.crosshairPlot.addItem(self.hLine, ignoreBounds=True)
+        
+        # Update crosshair
+        self.crosshairUpdate = pg.SignalProxy(self.crosshairPlot.scene().sigMouseMoved, rateLimit=60, slot=self.updateCrosshair)
+        
+    def updateCrosshair(self, event):
+        coordinates = event[0]  
+        if self.crosshairPlot.sceneBoundingRect().contains(coordinates):
+            mousePoint = self.crosshairPlot.plotItem.vb.mapSceneToView(coordinates)
+            index = mousePoint.x()
+            print(mousePoint.x(), mousePoint.y())
+            #self.crosshairPlot.setTitle("<span style='font-size: 12pt'>x=%0.1f,   <span style='color: red'>y=%0.1f</span>" % (mousePoint.x(), mousePoint.y()))
+            #print(mousePoint.x(), mousePoint.y())
+            self.vLine.setPos(mousePoint.x())
+            self.hLine.setPos(mousePoint.y())
+
+    def getCrosshairLayout(self):
+        return self.layout
+
+class Overlay(QtGui.QWidget):
+    def __init__(self, parent):
+        super(Overlay, self).__init__(parent)
+        # Make any widgets in the container have a transparent background
+        palette = QtGui.QPalette(self.palette())
+        palette.setColor(palette.Background, QtCore.Qt.transparent)
+        self.setPalette(palette)
+        
+        self.crosshair = CrosshairWidget()
+
+        self.layout = QtGui.QGridLayout()
+        self.layout.addLayout(self.crosshair.getCrosshairLayout(),1,0)
+        self.setLayout(self.layout)
+
+    # Make overlay transparent but keep widgets
+    def paintEvent(self, event):
+        painter = QtGui.QPainter()
+        painter.begin(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        # Transparency settings for overlay (r,g,b,a)
+        painter.fillRect(event.rect(), QtGui.QBrush(QtGui.QColor(0, 0, 0, 0)))
+        painter.end()
+
 class VideoWindow(QtGui.QWidget):
     def __init__(self, parent=None):
         super(VideoWindow, self).__init__(parent)
@@ -23,6 +92,7 @@ class VideoWindow(QtGui.QWidget):
 
         self.initPlaceholderImage()
         self.setLayout(self.layout)
+        self.crosshairOverlay = Overlay(self)
 
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.getFrame)
@@ -37,6 +107,16 @@ class VideoWindow(QtGui.QWidget):
         self.placeholder_image = QtGui.QImage(self.placeholder_image, self.placeholder_image.shape[1], self.placeholder_image.shape[0], QtGui.QImage.Format_RGB888).rgbSwapped()
         self.placeholder_image = QtGui.QPixmap.fromImage(self.placeholder_image)
         self.videoFrame.setPixmap(self.placeholder_image)
+
+    def showCrosshair(self):
+        self.crosshairOverlay.show()
+
+    def hideCrosshair(self):
+        self.crosshairOverlay.hide()
+
+    def resizeEvent(self, event):
+        self.crosshairOverlay.resize(event.size())
+        event.accept()
 
     def loadVideoFile(self):
         try:
@@ -121,6 +201,10 @@ class VideoStreamWidget(QtGui.QWidget):
         self.videoWindow.openNetworkStream()
     def loadVideoFile(self):
         self.videoWindow.loadVideoFile()
+    def showCrosshair(self):
+        self.videoWindow.showCrosshair()
+    def hideCrosshair(self):
+        self.videoWindow.hideCrosshair()
     
 app = QtGui.QApplication([])
 app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
@@ -143,6 +227,18 @@ openMediaFileAction.setShortcut('Ctrl+O')
 openMediaFileAction.setStatusTip('Open media file')
 openMediaFileAction.triggered.connect(videoStreamWidget.loadVideoFile)
 mediaMenu.addAction(openMediaFileAction)
+
+showCrosshairAction = QtGui.QAction('Show Crosshair', mw)
+showCrosshairAction.setShortcut('Ctrl+S')
+showCrosshairAction.setStatusTip('Show crosshair')
+showCrosshairAction.triggered.connect(videoStreamWidget.showCrosshair)
+mediaMenu.addAction(showCrosshairAction)
+
+hideCrosshairAction = QtGui.QAction('Hide Crosshair', mw)
+hideCrosshairAction.setShortcut('Ctrl+H')
+hideCrosshairAction.setStatusTip('Hide crosshair')
+hideCrosshairAction.triggered.connect(videoStreamWidget.hideCrosshair)
+mediaMenu.addAction(hideCrosshairAction)
 
 cw = QtGui.QWidget()
 ml = QtGui.QGridLayout()
