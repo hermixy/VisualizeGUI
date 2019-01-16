@@ -589,7 +589,7 @@ def changePlotColor(plotObject):
 app = QtGui.QApplication([])
 app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
-mw.setWindowTitle('ZMQ Motor GUI')
+mw.setWindowTitle('Rotational Controller GUI')
 
 # Read in configuration settings
 readSettings()
