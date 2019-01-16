@@ -6,8 +6,8 @@ Built executable file can be found in the dist/ folder
 python create_executable.py -f <filename.py>
 ```
 
-## ZMQ Motor GUI
-![](/doc/example.gif)
+## Rotational Controller GUI
+![](/doc/rotational_controller.gif)
 
 Controls rotational controller. Run servers in background:
 ```
