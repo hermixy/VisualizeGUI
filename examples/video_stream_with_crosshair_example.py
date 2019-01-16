@@ -1,10 +1,12 @@
 from PyQt4 import QtCore, QtGui
+from threading import Thread
 import numpy as np
 import cv2
 import random
 import imutils
 import pyqtgraph as pg
 import sys
+import time
 
 class CrosshairWidget(QtGui.QWidget):
     def __init__(self, parent=None):
@@ -36,29 +38,35 @@ class CrosshairWidget(QtGui.QWidget):
         self.crosshairPlot.addItem(self.hLine, ignoreBounds=True)
         
         # Update crosshair
-        self.crosshairUpdate = pg.SignalProxy(self.crosshairPlot.scene().sigMouseMoved, rateLimit=60, slot=self.updateCrosshair)
+        self.crosshairUpdate = pg.SignalProxy(self.crosshairPlot.scene().sigMouseMoved, rateLimit=300, slot=self.updateCrosshair)
         
     def updateCrosshair(self, event):
         coordinates = event[0]  
+        self.x = coordinates.x()
+        self.y = coordinates.y()
         if self.crosshairPlot.sceneBoundingRect().contains(coordinates):
             mousePoint = self.crosshairPlot.plotItem.vb.mapSceneToView(coordinates)
             index = mousePoint.x()
-            print(mousePoint.x(), mousePoint.y())
-            #self.crosshairPlot.setTitle("<span style='font-size: 12pt'>x=%0.1f,   <span style='color: red'>y=%0.1f</span>" % (mousePoint.x(), mousePoint.y()))
-            #print(mousePoint.x(), mousePoint.y())
             self.vLine.setPos(mousePoint.x())
             self.hLine.setPos(mousePoint.y())
 
     def getCrosshairLayout(self):
         return self.layout
 
+    def getX(self):
+        return self.x
+
+    def getY(self):
+        return self.y
+
 class Overlay(QtGui.QWidget):
     def __init__(self, parent):
         super(Overlay, self).__init__(parent)
+
         # Make any widgets in the container have a transparent background
-        palette = QtGui.QPalette(self.palette())
-        palette.setColor(palette.Background, QtCore.Qt.transparent)
-        self.setPalette(palette)
+        self.palette = QtGui.QPalette(self.palette())
+        self.palette.setColor(self.palette.Background, QtCore.Qt.transparent)
+        self.setPalette(self.palette)
         
         self.crosshair = CrosshairWidget()
 
@@ -68,13 +76,19 @@ class Overlay(QtGui.QWidget):
 
     # Make overlay transparent but keep widgets
     def paintEvent(self, event):
-        painter = QtGui.QPainter()
-        painter.begin(self)
-        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        self.painter = QtGui.QPainter()
+        self.painter.begin(self)
+        self.painter.setRenderHint(QtGui.QPainter.Antialiasing)
         # Transparency settings for overlay (r,g,b,a)
-        painter.fillRect(event.rect(), QtGui.QBrush(QtGui.QColor(0, 0, 0, 0)))
-        painter.end()
+        self.painter.fillRect(event.rect(), QtGui.QBrush(QtGui.QColor(0, 0, 0, 0)))
+        self.painter.end()
 
+    def getX(self):
+        return self.crosshair.getX()
+
+    def getY(self):
+        return self.crosshair.getY()
+        
 class VideoWindow(QtGui.QWidget):
     def __init__(self, parent=None):
         super(VideoWindow, self).__init__(parent)
@@ -83,7 +97,14 @@ class VideoWindow(QtGui.QWidget):
         self.videoFileName = None
         self.isVideoFileOrStreamLoaded = False
         self.pause = True
-        self.minWindowWidth = 300 
+        self.minWindowWidth = 400
+        self.minWindowHeight = 400
+
+        self.offset = 9
+        self.placeholder_image_file = 'placeholder1.PNG'
+
+        self.frequency = .002
+        self.timer_frequency = self.frequency * 1000
 
         self.videoFrame = QtGui.QLabel()
         
@@ -93,58 +114,37 @@ class VideoWindow(QtGui.QWidget):
         self.initPlaceholderImage()
         self.setLayout(self.layout)
         self.crosshairOverlay = Overlay(self)
+        self.displayCrosshair = True
 
         self.timer = QtCore.QTimer()
-        self.timer.timeout.connect(self.getFrame)
-    
-    def initPlaceholderImage(self):
-        self.placeholder_image = cv2.imread('placeholder.PNG')
-        # Maintain aspect ratio
-        self.placeholder_image = imutils.resize(self.placeholder_image, width=self.minWindowWidth)
-        self.image_width = self.placeholder_image.shape[1]
-        self.image_height = self.placeholder_image.shape[0]
+        self.timer.timeout.connect(self.setFrame)
+        self.getFrameThread = Thread(target=self.getFrame, args=())
+        self.getFrameThread.daemon = True
+        self.getFrameThread.start()
+        self.startCapture()
 
-        self.placeholder_image = QtGui.QImage(self.placeholder_image, self.placeholder_image.shape[1], self.placeholder_image.shape[0], QtGui.QImage.Format_RGB888).rgbSwapped()
-        self.placeholder_image = QtGui.QPixmap.fromImage(self.placeholder_image)
+    def initPlaceholderImage(self):
+        self.placeholder_image = cv2.imread(self.placeholder_image_file)
+        
+        # Maintain aspect ratio
+        #self.placeholder_image = imutils.resize(self.placeholder_image, width=self.minWindowWidth)
+        self.placeholder_image = cv2.resize(self.placeholder_image, (self.minWindowWidth, self.minWindowHeight))
+
+        self.placeholder = QtGui.QImage(self.placeholder_image, self.placeholder_image.shape[1], self.placeholder_image.shape[0], QtGui.QImage.Format_RGB888).rgbSwapped()
+        self.placeholder_image = QtGui.QPixmap.fromImage(self.placeholder)
         self.videoFrame.setPixmap(self.placeholder_image)
 
-    def showCrosshair(self):
-        self.crosshairOverlay.show()
-
-    def hideCrosshair(self):
-        self.crosshairOverlay.hide()
-
-    def resizeEvent(self, event):
-        self.crosshairOverlay.resize(event.size())
-        event.accept()
-
-    def loadVideoFile(self):
-        try:
-            self.videoFileName = QtGui.QFileDialog.getOpenFileName(self, 'Select .h264 Video File')
-            if self.videoFileName:
-                self.isVideoFileOrStreamLoaded = True
-                self.pause = False
-                self.capture = cv2.VideoCapture(str(self.videoFileName))
-        except:
-            print("Please select a .h264 file")
-
+    def alignCrosshair(self):
+        capture = cv2.VideoCapture(str(self.videoFileName))
+        status, frame = capture.read()
+        frame = imutils.resize(frame, width=self.minWindowWidth)
+        self.resizedImageHeight = frame.shape[0]
+        frameHeight = self.size().height()
+        self.translate = (frameHeight - self.resizedImageHeight - (2 * self.offset))/2
+    
     def startCapture(self):
-        if self.isVideoFileOrStreamLoaded:
-            self.pause = False
-            self.timer.start(10)
-
-    def getFrame(self):
-        if not self.pause and self.capture.isOpened():
-            status, frame = self.capture.read()
-            if frame is not None:
-                frame = imutils.resize(frame, width=self.image_width)
-                #print(frame.shape[1], frame.shape[0])
-                img = QtGui.QImage(frame, frame.shape[1], frame.shape[0], QtGui.QImage.Format_RGB888).rgbSwapped()
-                pix = QtGui.QPixmap.fromImage(img)
-                self.videoFrame.setPixmap(pix)
-            # Reached end of file so stop timer and pause video
-            else:
-                self.pauseCapture()
+        self.pause = False
+        self.timer.start(self.timer_frequency)
 
     def pauseCapture(self):
         if not self.pause:
@@ -154,14 +154,17 @@ class VideoWindow(QtGui.QWidget):
     def stopCapture(self):
         self.pauseCapture()
         self.capture = cv2.VideoCapture(str(self.videoFileName))
-        self.videoFrame.setPixmap(self.placeholder_image)
 
-    def verifyNetworkStream(self, link):
-        cap = cv2.VideoCapture(link)
-        if cap is None or not cap.isOpened():
-            print('Warning: unable to open video link')
-            return False
-        return True
+    def loadVideoFile(self):
+        try:
+            self.videoFileName = QtGui.QFileDialog.getOpenFileName(self, 'Select .h264 Video File')
+            if self.videoFileName:
+                self.isVideoFileOrStreamLoaded = True
+                self.pause = False
+                self.capture = cv2.VideoCapture(str(self.videoFileName))
+                self.alignCrosshair()
+        except:
+            print("Please select a .h264 file")
 
     def openNetworkStream(self):
         text, okPressed = QtGui.QInputDialog.getText(self, "Open Media", "Please enter a network URL:")
@@ -169,10 +172,60 @@ class VideoWindow(QtGui.QWidget):
         if okPressed and self.verifyNetworkStream(link):
             self.isVideoFileOrStreamLoaded = True
             self.pause = False
+            self.videoFileName = link
             self.capture = cv2.VideoCapture(link)
+            self.alignCrosshair()
+            
+    def verifyNetworkStream(self, link):
+        cap = cv2.VideoCapture(link)
+        if cap is None or not cap.isOpened():
+            print('Warning: unable to open video link')
+            return False
+        return True
+
+    def getFrame(self):
+        while True:
+            try:
+                if not self.pause and self.capture.isOpened():
+                    status, self.frame = self.capture.read()
+                    if self.frame is not None:
+                        self.frame = imutils.resize(self.frame, width=self.minWindowWidth)
+                        self.img = QtGui.QImage(self.frame, self.frame.shape[1], self.frame.shape[0], QtGui.QImage.Format_RGB888).rgbSwapped()
+                        self.pix = QtGui.QPixmap.fromImage(self.img)
+            except:
+                pass
+            time.sleep(self.frequency)
+
+    def setFrame(self):
+        try:
+            self.videoFrame.setPixmap(self.pix)
+        except:
+            pass
+
     def getVideoWindowLayout(self):
         return self.layout
+    
+    def showCrosshair(self):
+        self.displayCrosshair = True
+        self.crosshairOverlay.show()
 
+    def hideCrosshair(self):
+        self.displayCrosshair = False 
+        self.crosshairOverlay.hide()
+
+    def resizeEvent(self, event):
+        self.crosshairOverlay.resize(event.size())
+        event.accept()
+        
+    def mousePressEvent(self, QMouseEvent):
+        if self.isVideoFileOrStreamLoaded and self.displayCrosshair:
+            x = self.crosshairOverlay.getX() 
+            y = self.crosshairOverlay.getY() - self.translate
+            
+            if x > 0 and x < self.minWindowWidth and y > 0 and y < self.resizedImageHeight:
+                c = self.img.pixel(x,y)
+                print(QtGui.QColor(c).getRgb())
+        
 class VideoStreamWidget(QtGui.QWidget):
     def __init__(self, parent=None):
         super(VideoStreamWidget, self).__init__(parent)
@@ -197,12 +250,16 @@ class VideoStreamWidget(QtGui.QWidget):
 
     def getVideoDisplayLayout(self):
         return self.layout
+
     def openNetworkStream(self):
         self.videoWindow.openNetworkStream()
+
     def loadVideoFile(self):
         self.videoWindow.loadVideoFile()
+
     def showCrosshair(self):
         self.videoWindow.showCrosshair()
+
     def hideCrosshair(self):
         self.videoWindow.hideCrosshair()
     
@@ -210,6 +267,11 @@ app = QtGui.QApplication([])
 app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
 mw.setWindowTitle('Video Stream Widget')
+
+cw = QtGui.QWidget()
+ml = QtGui.QGridLayout()
+cw.setLayout(ml)
+mw.setCentralWidget(cw)
 
 videoStreamWidget = VideoStreamWidget()
 
@@ -239,11 +301,6 @@ hideCrosshairAction.setShortcut('Ctrl+H')
 hideCrosshairAction.setStatusTip('Hide crosshair')
 hideCrosshairAction.triggered.connect(videoStreamWidget.hideCrosshair)
 mediaMenu.addAction(hideCrosshairAction)
-
-cw = QtGui.QWidget()
-ml = QtGui.QGridLayout()
-cw.setLayout(ml)
-mw.setCentralWidget(cw)
 
 ml.addLayout(videoStreamWidget.getVideoDisplayLayout(),0,0)
 
