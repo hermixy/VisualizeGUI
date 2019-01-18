@@ -1,4 +1,5 @@
 from PyQt4 import QtCore, QtGui
+import imutils
 import pyqtgraph as pg
 import random
 import zmq
@@ -555,16 +556,19 @@ class VideoWindow(QtGui.QWidget):
     def resizeEvent(self, event):
         self.crosshairOverlay.resize(event.size())
         event.accept()
-        
+    
     def mousePressEvent(self, QMouseEvent):
         if self.isVideoFileOrStreamLoaded and self.displayCrosshair:
-            x = self.crosshairOverlay.getX() 
-            y = self.crosshairOverlay.getY() - self.translate
+            self.x = self.crosshairOverlay.getX() 
+            self.y = self.crosshairOverlay.getY() - self.translate
             
-            if x > 0 and x < self.minWindowWidth and y > 0 and y < self.resizedImageHeight:
-                c = self.img.pixel(x,y)
+            if self.x > 0 and self.x < self.minWindowWidth and self.y > 0 and self.y < self.resizedImageHeight:
+                c = self.img.pixel(self.x,self.y)
                 print(QtGui.QColor(c).getRgb())
-        
+                self.crosshairOverlay.setUpdateDotFlag(True)
+                # Calling update automatically calls paintEvent()
+                self.update()
+
 class VideoStreamWidget(QtGui.QWidget):
     def __init__(self, parent=None):
         super(VideoStreamWidget, self).__init__(parent)
@@ -635,14 +639,13 @@ class CrosshairWidget(QtGui.QWidget):
         self.crosshairUpdate = pg.SignalProxy(self.crosshairPlot.scene().sigMouseMoved, rateLimit=300, slot=self.updateCrosshair)
         
     def updateCrosshair(self, event):
-        coordinates = event[0]  
-        self.x = coordinates.x()
-        self.y = coordinates.y()
-        if self.crosshairPlot.sceneBoundingRect().contains(coordinates):
-            mousePoint = self.crosshairPlot.plotItem.vb.mapSceneToView(coordinates)
-            index = mousePoint.x()
-            self.vLine.setPos(mousePoint.x())
-            self.hLine.setPos(mousePoint.y())
+        self.coordinates = event[0]  
+        self.x = self.coordinates.x()
+        self.y = self.coordinates.y()
+        if self.crosshairPlot.sceneBoundingRect().contains(self.coordinates):
+            self.mousePoint = self.crosshairPlot.plotItem.vb.mapSceneToView(self.coordinates)
+            self.vLine.setPos(self.mousePoint.x())
+            self.hLine.setPos(self.mousePoint.y())
 
     def getCrosshairLayout(self):
         return self.layout
@@ -652,7 +655,7 @@ class CrosshairWidget(QtGui.QWidget):
 
     def getY(self):
         return self.y
-
+    
 class Overlay(QtGui.QWidget):
     def __init__(self, parent):
         super(Overlay, self).__init__(parent)
@@ -661,21 +664,42 @@ class Overlay(QtGui.QWidget):
         self.palette = QtGui.QPalette(self.palette())
         self.palette.setColor(self.palette.Background, QtCore.Qt.transparent)
         self.setPalette(self.palette)
-        
+        self.dotOffset = 9
+       
         self.crosshair = CrosshairWidget()
+        self.painter = QtGui.QPainter()
+        self.updateDotFlag = False
+        self.pen = QtGui.QPen(QtCore.Qt.green, 1)
+        self.brush = QtGui.QBrush(QtCore.Qt.green)
+        
+        # Set initial dot outside paint window
+        self.dotX = -100
+        self.dotY = -100
 
         self.layout = QtGui.QGridLayout()
         self.layout.addLayout(self.crosshair.getCrosshairLayout(),1,0)
         self.setLayout(self.layout)
-
+    
     # Make overlay transparent but keep widgets
     def paintEvent(self, event):
-        self.painter = QtGui.QPainter()
         self.painter.begin(self)
         self.painter.setRenderHint(QtGui.QPainter.Antialiasing)
         # Transparency settings for overlay (r,g,b,a)
         self.painter.fillRect(event.rect(), QtGui.QBrush(QtGui.QColor(0, 0, 0, 0)))
+        if self.updateDotFlag:
+            self.updateDot()
+            self.setUpdateDotFlag(False)
+        self.painter.setPen(self.pen)
+        self.painter.setBrush(self.brush)
+        self.painter.drawEllipse(self.dotX, self.dotY, 4, 4)
         self.painter.end()
+
+    def updateDot(self):
+        self.dotX = self.getX() + self.dotOffset
+        self.dotY = self.getY() + self.dotOffset
+
+    def setUpdateDotFlag(self, boolean):
+        self.updateDotFlag = boolean
 
     def getX(self):
         return self.crosshair.getX()
