@@ -621,8 +621,8 @@ mw.setFixedSize(700,550)
 pg.setConfigOption('leftButtonPan', False)
 
 # Arrange widget layouts
-ml.addLayout(l,0,0)
-ml.addWidget(plot.getZMQPlotWidget(),1,0)
+ml.addLayout(l,0,0,1,1)
+ml.addWidget(plot.getZMQPlotWidget(),1,0,1,1)
 ml.addWidget(motorPlot.getRotationalControllerPlotWidget(),0,1,2,1)
 mw.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
 

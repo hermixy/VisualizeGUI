@@ -441,7 +441,7 @@ class VideoWindow(QtGui.QWidget):
         self.minWindowHeight = 600
 
         self.offset = 9
-        self.placeholder_image_file = 'placeholder1.PNG'
+        self.placeholder_image_file = 'doc/placeholder5.PNG'
 
         self.frequency = .002
         self.timer_frequency = self.frequency * 1000
