@@ -5,3 +5,4 @@ MANIFEST
 *.pyc
 build/
 dist/
+.ini
