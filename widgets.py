@@ -437,8 +437,8 @@ class VideoWindow(QtGui.QWidget):
         self.videoFileName = None
         self.isVideoFileOrStreamLoaded = False
         self.pause = True
-        self.minWindowWidth = 400
-        self.minWindowHeight = 400
+        self.minWindowWidth = 600
+        self.minWindowHeight = 600
 
         self.offset = 9
         self.placeholder_image_file = 'placeholder1.PNG'
@@ -636,8 +636,8 @@ class CrosshairWidget(QtGui.QWidget):
         self.crosshairPlot.addItem(self.hLine, ignoreBounds=True)
         
         # Update crosshair
-        self.crosshairUpdate = pg.SignalProxy(self.crosshairPlot.scene().sigMouseMoved, rateLimit=300, slot=self.updateCrosshair)
-        
+        self.crosshairUpdate = pg.SignalProxy(self.crosshairPlot.scene().sigMouseMoved, rateLimit=1500, slot=self.updateCrosshair)
+
     def updateCrosshair(self, event):
         self.coordinates = event[0]  
         self.x = self.coordinates.x()
@@ -666,15 +666,19 @@ class Overlay(QtGui.QWidget):
         self.setPalette(self.palette)
         self.dotOffset = 9
        
+        self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
         self.crosshair = CrosshairWidget()
         self.painter = QtGui.QPainter()
         self.updateDotFlag = False
-        self.pen = QtGui.QPen(QtCore.Qt.green, 1)
-        self.brush = QtGui.QBrush(QtCore.Qt.green)
+        self.pen = QtGui.QPen(QtCore.Qt.green, 1.5)
         
         # Set initial dot outside paint window
+        # Top left is (0,0)
         self.dotX = -100
         self.dotY = -100
+
+        self.crosshairLength = 7
+        self.crosshairDifference = 5
 
         self.layout = QtGui.QGridLayout()
         self.layout.addLayout(self.crosshair.getCrosshairLayout(),1,0)
@@ -690,9 +694,20 @@ class Overlay(QtGui.QWidget):
             self.updateDot()
             self.setUpdateDotFlag(False)
         self.painter.setPen(self.pen)
-        self.painter.setBrush(self.brush)
-        self.painter.drawEllipse(self.dotX, self.dotY, 4, 4)
+        self.drawCrosshair()
         self.painter.end()
+
+    def drawCrosshair(self):
+        # Middle point
+        self.painter.drawPoint(self.dotX, self.dotY)
+        # Top
+        self.painter.drawLine(self.dotX, self.dotY - self.crosshairDifference, self.dotX, self.dotY - self.crosshairDifference - self.crosshairLength)
+        # Right
+        self.painter.drawLine(self.dotX + self.crosshairDifference, self.dotY, self.dotX + self.crosshairDifference + self.crosshairLength, self.dotY)
+        # Bottom
+        self.painter.drawLine(self.dotX, self.dotY + self.crosshairDifference, self.dotX, self.dotY + self.crosshairDifference + self.crosshairLength)
+        # Left
+        self.painter.drawLine(self.dotX - self.crosshairDifference, self.dotY, self.dotX - self.crosshairDifference - self.crosshairLength, self.dotY)
 
     def updateDot(self):
         self.dotX = self.getX() + self.dotOffset
