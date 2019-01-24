@@ -447,6 +447,7 @@ class VideoWindow(QtGui.QWidget):
 
         self.offset = 9
         self.placeholder_image_file = 'doc/placeholder5.PNG'
+        self.videoFilterFormats = self.tr("Video files(*.mp4 *.gif *.mov *.flv *.avi *.wmv)")
 
         self.frequency = .002
         self.timer_frequency = self.frequency * 1000
@@ -501,15 +502,12 @@ class VideoWindow(QtGui.QWidget):
         self.capture = cv2.VideoCapture(str(self.videoFileName))
 
     def loadVideoFile(self):
-        try:
-            self.videoFileName = QtGui.QFileDialog.getOpenFileName(self, 'Select .h264 Video File')
-            if self.videoFileName:
-                self.isVideoFileOrStreamLoaded = True
-                self.pause = False
-                self.capture = cv2.VideoCapture(str(self.videoFileName))
-                self.alignCrosshair()
-        except AttributeError:
-            print("Please select a .h264 file")
+        self.videoFileName = QtGui.QFileDialog.getOpenFileName(self, 'Select .h264 Video File', '', self.videoFilterFormats)
+        if self.videoFileName:
+            self.isVideoFileOrStreamLoaded = True
+            self.pause = False
+            self.capture = cv2.VideoCapture(str(self.videoFileName))
+            self.alignCrosshair()
 
     def openNetworkStream(self):
         text, okPressed = QtGui.QInputDialog.getText(self, "Open Media", "Please enter a network URL:")
