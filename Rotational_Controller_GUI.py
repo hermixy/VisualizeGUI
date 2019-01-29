@@ -38,8 +38,11 @@ def readSettings():
         try:
             position_frequency = float(config['ROTATIONAL_CONTROLLER']['positionFrequency'])
             if position_frequency <= 0:
+                QtGui.QMessageBox.about(QtGui.QWidget(), 'Error',
+                        'positionFrequency value cannot be zero or negative. Check motor.ini')
                 exit(1)
-        except:
+        # Input was not a valid number 
+        except ValueError:
             QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'Invalid positionFrequency value. Check motor.ini')
             exit(1)
 
@@ -48,8 +51,10 @@ def readSettings():
         try:
             ZMQ_frequency = float(config['ZMQ_PLOT']['ZMQFrequency'])
             if ZMQ_frequency <= 0:
+                QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'ZMQFrequency value cannot be zero or negative. Check motor.ini')
                 exit(1)
-        except:
+        # Input was not a valid number 
+        except ValueError:
             QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'Invalid ZMQFrequency value. Check motor.ini')
             exit(1)
     
@@ -621,8 +626,8 @@ mw.setFixedSize(700,550)
 pg.setConfigOption('leftButtonPan', False)
 
 # Arrange widget layouts
-ml.addLayout(l,0,0)
-ml.addWidget(plot.getZMQPlotWidget(),1,0)
+ml.addLayout(l,0,0,1,1)
+ml.addWidget(plot.getZMQPlotWidget(),1,0,1,1)
 ml.addWidget(motorPlot.getRotationalControllerPlotWidget(),0,1,2,1)
 mw.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
 

@@ -77,7 +77,8 @@ class ZMQPlotWidget(QtGui.QWidget):
                         pass
                     else:
                         print("real error")
-        except:
+        # Invalid argument
+        except zmq.ZMQError, e:
             self.verified = False
 
     def updateZMQPlotAddress(self, address, topic):
@@ -212,7 +213,8 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
                         pass
                     else:
                         print("real error")
-        except:
+        # Invalid argument
+        except zmq.ZMQError, e:
             self.positionVerified = False
 
     def initialCheckValidParameterPort(self):
@@ -238,7 +240,8 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
                         pass
                     else:
                         print("real error")
-        except:
+        # Invalid argument
+        except zmq.ZMQError, e:
             self.parameterVerified = False
 
     def updatePositionPlotAddress(self, address, topic): 
@@ -278,13 +281,15 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
         frequency = self.getRotationalControllerFrequency()
         while True:
             try:
-                topic, self.currentPositionValue = self.positionSocket.recv().split()
+                topic, self.currentPositionValue = self.positionSocket.recv(zmq.NOBLOCK).split()
                 # Change to 0 since Rotational controller reports 0 as -0
                 if self.currentPositionValue == '-0.00':
                     self.currentPositionValue = '0.00'
                 self.oldCurrentPositionValue = self.currentPositionValue
-            except:
-                self.currentPositionValue = self.oldCurrentPositionValue
+            # Resource temporarily unavailable
+            except zmq.ZMQError, e:
+                if e.errno == zmq.EAGAIN:
+                    self.currentPositionValue = self.oldCurrentPositionValue
             time.sleep(frequency)
 
     def plotUpdater(self):
@@ -441,7 +446,8 @@ class VideoWindow(QtGui.QWidget):
         self.minWindowHeight = 600
 
         self.offset = 9
-        self.placeholder_image_file = 'placeholder1.PNG'
+        self.placeholder_image_file = 'doc/placeholder5.PNG'
+        self.videoFilterFormats = self.tr("Video files(*.mp4 *.gif *.mov *.flv *.avi *.wmv)")
 
         self.frequency = .002
         self.timer_frequency = self.frequency * 1000
@@ -496,15 +502,12 @@ class VideoWindow(QtGui.QWidget):
         self.capture = cv2.VideoCapture(str(self.videoFileName))
 
     def loadVideoFile(self):
-        try:
-            self.videoFileName = QtGui.QFileDialog.getOpenFileName(self, 'Select .h264 Video File')
-            if self.videoFileName:
-                self.isVideoFileOrStreamLoaded = True
-                self.pause = False
-                self.capture = cv2.VideoCapture(str(self.videoFileName))
-                self.alignCrosshair()
-        except:
-            print("Please select a .h264 file")
+        self.videoFileName = QtGui.QFileDialog.getOpenFileName(self, 'Select .h264 Video File', '', self.videoFilterFormats)
+        if self.videoFileName:
+            self.isVideoFileOrStreamLoaded = True
+            self.pause = False
+            self.capture = cv2.VideoCapture(str(self.videoFileName))
+            self.alignCrosshair()
 
     def openNetworkStream(self):
         text, okPressed = QtGui.QInputDialog.getText(self, "Open Media", "Please enter a network URL:")
@@ -532,14 +535,16 @@ class VideoWindow(QtGui.QWidget):
                         self.frame = imutils.resize(self.frame, width=self.minWindowWidth)
                         self.img = QtGui.QImage(self.frame, self.frame.shape[1], self.frame.shape[0], QtGui.QImage.Format_RGB888).rgbSwapped()
                         self.pix = QtGui.QPixmap.fromImage(self.img)
-            except:
+            # No frame in buffer so skip
+            except AttributeError:
                 pass
             time.sleep(self.frequency)
 
     def setFrame(self):
         try:
             self.videoFrame.setPixmap(self.pix)
-        except:
+        # No frame in buffer so skip
+        except AttributeError:
             pass
 
     def getVideoWindowLayout(self):
