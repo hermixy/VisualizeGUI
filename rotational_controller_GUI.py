@@ -40,7 +40,7 @@ def read_settings():
     global save_settings
     
     save_settings = False
-
+    
     # Read in each section and parse information
     try:
         config = configparser.ConfigParser()
@@ -115,7 +115,28 @@ def write_port_settings_toggle():
         status_bar.showMessage('Write to rotational.ini disabled', 4000)
     else: 
         save_settings = True
+        write_current_port_settings()
         status_bar.showMessage('Write to rotational.ini enabled', 4000)
+
+def write_current_port_settings():
+    """Save current port settings into .ini file"""
+
+    global position_settings
+    global parameter_settings
+    global ZMQ_plot_settings
+
+    try:
+        write_settings('ROTATIONAL_CONTROLLER', position_settings)
+    except NameError:
+        pass
+    try:
+        write_settings('ROTATIONAL_CONTROLLER', parameter_settings)
+    except NameError:
+        pass
+    try:
+        write_settings('ZMQ_PLOT', ZMQ_plot_settings)
+    except NameError:
+        pass
 
 # =====================================================================
 # Port connection popup widget  
@@ -255,6 +276,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         global position_socket 
         global position_topic
         global position_status
+        global position_settings
 
         if address and port and topic:
             new_position_address = "tcp://" + address + ":" + port
@@ -270,8 +292,8 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                         topic, data = socket.recv(zmq.NOBLOCK).split()
                         position_address = new_position_address
                         position_context, position_socket, position_topic = rotational_controller_plot.update_position_plot_address(new_position_address, topic)
-                        settings = {'position_address': new_position_address, 'position_topic': position_topic}
-                        write_settings('ROTATIONAL_CONTROLLER', settings) 
+                        position_settings = {'position_address': new_position_address, 'position_topic': position_topic}
+                        write_settings('ROTATIONAL_CONTROLLER', position_settings) 
                         self.status = ('success', position_address)
                         rotational_controller_plot.set_position_verified(True)
                         position_status.setStyleSheet(self.style_setting_valid)
@@ -306,6 +328,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         global parameter_address
         global rotational_controller_plot
         global parameter_status
+        global parameter_settings
         
         if address and port:
             new_parameter_address = "tcp://" + address + ":" + port
@@ -324,8 +347,8 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                         parameter_address = new_parameter_address
                         rotational_controller_plot.set_parameter_verified(True)
                         self.change_parameter_port(new_parameter_address)
-                        settings = {'parameter_address': new_parameter_address}
-                        write_settings('ROTATIONAL_CONTROLLER', settings) 
+                        parameter_settings = {'parameter_address': new_parameter_address}
+                        write_settings('ROTATIONAL_CONTROLLER', parameter_settings) 
                         self.status = ('success', parameter_address)
                         parameter_status.setStyleSheet(self.style_setting_valid)
                         return
@@ -368,6 +391,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
 
         global plot
         global plot_status
+        global ZMQ_plot_settings
         
         if address and port and topic:
             new_plot_address = "tcp://" + address + ":" + port
@@ -384,8 +408,8 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                         plot.update_ZMQ_plot_address(new_plot_address, topic)
                         if not plot.get_verified():
                             plot.set_verified(True)
-                        settings = {'ZMQ_address': new_plot_address, 'ZMQ_topic': topic}
-                        write_settings('ZMQ_PLOT', settings) 
+                        ZMQ_plot_settings = {'ZMQ_address': new_plot_address, 'ZMQ_topic': topic}
+                        write_settings('ZMQ_PLOT', ZMQ_plot_settings) 
                         self.status = ('success', new_plot_address)
                         plot_status.setStyleSheet(self.style_setting_valid)
                         return
