@@ -1,9 +1,11 @@
-import sys
 from PyQt4 import QtGui, QtCore
+import sys
 
-class displayImageWidget(QtGui.QWidget):
+"""Display Image Widget"""
+
+class DisplayImageWidget(QtGui.QWidget):
     def __init__(self, parent=None):
-        super(displayImageWidget, self).__init__(parent)
+        super (DisplayImageWidget, self).__init__(parent)
         
         self.image = QtGui.QPixmap("../doc/placeholder5.PNG")
         self.label = QtGui.QLabel(self)
@@ -12,19 +14,23 @@ class displayImageWidget(QtGui.QWidget):
         self.layout = QtGui.QHBoxLayout(self)
         self.layout.addWidget(self.label)
 
+# Create main application window
 app = QtGui.QApplication([])
 app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
 mw.setWindowTitle('Display Image Example')
 
+# Create and set widget layout
+# Main widget container
 cw = QtGui.QWidget()
 ml = QtGui.QGridLayout()
 cw.setLayout(ml)
 mw.setCentralWidget(cw)
 
-displayImage = displayImageWidget()
+# Create display image widget
+display_image_widget = DisplayImageWidget()
 
-ml.addWidget(displayImage,0,0)
+ml.addWidget(display_image_widget,0,0)
 
 mw.show()
 

@@ -8,171 +8,191 @@ import pyqtgraph as pg
 import sys
 import time
 
-class VideoWindow(QtGui.QWidget):
+"""Video Window Widget Example"""
+
+class VideoWindowWidget(QtGui.QWidget):
     def __init__(self, parent=None):
-        super(VideoWindow, self).__init__(parent)
+        super(VideoWindowWidget, self).__init__(parent)
 
         self.capture = None
-        self.videoFileName = None
-        self.isVideoFileOrStreamLoaded = False
+        self.video_file = None
+        self.is_video_file_or_stream_loaded = False
         self.pause = True
-        self.minWindowWidth = 400
-        self.minWindowHeight = 400
+        self.MIN_WINDOW_WIDTH = 400
+        self.MIN_WINDOW_HEIGHT = 400
 
         self.placeholder_image_file = '../doc/placeholder5.PNG'
 
-        self.frequency = .002
-        self.timer_frequency = self.frequency * 1000
+        self.FREQUENCY = .002
+        self.TIMER_FREQUENCY = self.FREQUENCY * 1000
 
-        self.videoFrame = QtGui.QLabel()
+        # Ensure video frame is created before overlay
+        # since overlay with invisible crosshair plot is place above
+        self.video_frame = QtGui.QLabel()
         
         self.layout = QtGui.QGridLayout()
-        self.layout.addWidget(self.videoFrame,0,0)
+        self.layout.addWidget(self.video_frame,0,0)
 
-        self.initPlaceholderImage()
+        self.init_placeholder_image()
         self.setLayout(self.layout)
 
         self.timer = QtCore.QTimer()
-        self.timer.timeout.connect(self.setFrame)
-        self.getFrameThread = Thread(target=self.getFrame, args=())
-        self.getFrameThread.daemon = True
-        self.getFrameThread.start()
-        self.startCapture()
+        self.timer.timeout.connect(self.set_frame)
+        self.get_frame_thread = Thread(target=self.get_frame, args=())
+        self.get_frame_thread.daemon = True
+        self.get_frame_thread.start()
+        self.start_capture()
 
-    def initPlaceholderImage(self):
+    def init_placeholder_image(self):
+        """Set placeholder image when video is stopped"""
+
         self.placeholder_image = cv2.imread(self.placeholder_image_file)
         
         # Maintain aspect ratio
-        #self.placeholder_image = imutils.resize(self.placeholder_image, width=self.minWindowWidth)
-        self.placeholder_image = cv2.resize(self.placeholder_image, (self.minWindowWidth, self.minWindowHeight))
+        #self.placeholder_image = imutils.resize(self.placeholder_image, width=self.MIN_WINDOW_WIDTH)
+        self.placeholder_image = cv2.resize(self.placeholder_image, (self.MIN_WINDOW_WIDTH, self.MIN_WINDOW_HEIGHT))
 
         self.placeholder = QtGui.QImage(self.placeholder_image, self.placeholder_image.shape[1], self.placeholder_image.shape[0], QtGui.QImage.Format_RGB888).rgbSwapped()
         self.placeholder_image = QtGui.QPixmap.fromImage(self.placeholder)
-        self.videoFrame.setPixmap(self.placeholder_image)
+        self.video_frame.setPixmap(self.placeholder_image)
 
-    def startCapture(self):
+    def start_capture(self):
         self.pause = False
-        self.timer.start(self.timer_frequency)
+        self.timer.start(self.TIMER_FREQUENCY)
 
-    def pauseCapture(self):
+    def pause_capture(self):
         if not self.pause:
             self.pause = True
             self.timer.stop()
 
-    def stopCapture(self):
-        self.pauseCapture()
-        self.capture = cv2.VideoCapture(str(self.videoFileName))
+    def stop_capture(self):
+        self.pause_capture()
+        self.capture = cv2.VideoCapture(str(self.video_file))
 
-    def loadVideoFile(self):
+    def load_video_file(self):
+        """Open file explorer to select media file"""
+
         try:
-            self.videoFileName = QtGui.QFileDialog.getOpenFileName(self, 'Select .h264 Video File')
-            if self.videoFileName:
-                self.isVideoFileOrStreamLoaded = True
+            self.video_file = QtGui.QFileDialog.getOpenFileName(self, 'Select .h264 Video File')
+            if self.video_file:
+                self.is_video_file_or_stream_loaded = True
                 self.pause = False
-                self.capture = cv2.VideoCapture(str(self.videoFileName))
+                self.capture = cv2.VideoCapture(str(self.video_file))
         except:
             print("Please select a .h264 file")
 
-    def openNetworkStream(self):
-        text, okPressed = QtGui.QInputDialog.getText(self, "Open Media", "Please enter a network URL:")
+    def open_network_stream(self):
+        """Opens popup dialog to enter IP network stream"""
+
+        text, pressed_status = QtGui.QInputDialog.getText(self, "Open Media", "Please enter a network URL:")
         link = str(text)
-        if okPressed and self.verifyNetworkStream(link):
-            self.isVideoFileOrStreamLoaded = True
+        if pressed_status and self.verify_network_stream(link):
+            self.is_video_file_or_stream_loaded = True
             self.pause = False
-            self.videoFileName = link
+            self.video_file = link
             self.capture = cv2.VideoCapture(link)
             
-    def verifyNetworkStream(self, link):
+    def verify_network_stream(self, link):
+        """Attempts to receive a frame from given link"""
+
         cap = cv2.VideoCapture(link)
         if cap is None or not cap.isOpened():
-            print('Warning: unable to open video link')
             return False
         return True
 
-    def getFrame(self):
+    def get_frame(self):
+        """Reads frame, resizes, and converts image to pixmap"""
+
         while True:
             try:
                 if not self.pause and self.capture.isOpened():
                     status, self.frame = self.capture.read()
                     if self.frame is not None:
-                        self.frame = imutils.resize(self.frame, width=self.minWindowWidth)
+                        self.frame = imutils.resize(self.frame, width=self.MIN_WINDOW_WIDTH)
                         self.img = QtGui.QImage(self.frame, self.frame.shape[1], self.frame.shape[0], QtGui.QImage.Format_RGB888).rgbSwapped()
                         self.pix = QtGui.QPixmap.fromImage(self.img)
             except:
                 pass
-            time.sleep(self.frequency)
+            time.sleep(self.FREQUENCY)
 
-    def setFrame(self):
+    def set_frame(self):
+        """Sets pixmap image to video frame"""
+
         try:
-            self.videoFrame.setPixmap(self.pix)
+            self.video_frame.setPixmap(self.pix)
         except:
             pass
 
-    def getVideoWindowLayout(self):
+    def get_video_window_layout(self):
         return self.layout
     
 class VideoStreamWidget(QtGui.QWidget):
     def __init__(self, parent=None):
         super(VideoStreamWidget, self).__init__(parent)
         
-        self.videoWindow = VideoWindow()
+        self.video_window = VideoWindowWidget()
 
-        self.startButton = QtGui.QPushButton('Start')
-        self.startButton.clicked.connect(self.videoWindow.startCapture)
-        self.pauseButton = QtGui.QPushButton('Pause')
-        self.pauseButton.clicked.connect(self.videoWindow.pauseCapture)
-        self.stopButton = QtGui.QPushButton('Stop')
-        self.stopButton.clicked.connect(self.videoWindow.stopCapture)
+        self.start_button = QtGui.QPushButton('Start')
+        self.start_button.clicked.connect(self.video_window.start_capture)
+        self.pause_button = QtGui.QPushButton('Pause')
+        self.pause_button.clicked.connect(self.video_window.pause_capture)
+        self.stop_button = QtGui.QPushButton('Stop')
+        self.stop_button.clicked.connect(self.video_window.stop_capture)
 
         self.layout = QtGui.QGridLayout()
-        self.buttonLayout = QtGui.QHBoxLayout()
-        self.buttonLayout.addWidget(self.startButton)
-        self.buttonLayout.addWidget(self.pauseButton)
-        self.buttonLayout.addWidget(self.stopButton)
+        self.button_layout = QtGui.QHBoxLayout()
+        self.button_layout.addWidget(self.start_button)
+        self.button_layout.addWidget(self.pause_button)
+        self.button_layout.addWidget(self.stop_button)
 
-        self.layout.addLayout(self.buttonLayout,0,0)
-        self.layout.addWidget(self.videoWindow,1,0)
+        self.layout.addLayout(self.button_layout,0,0)
+        self.layout.addWidget(self.video_window,1,0)
 
-    def getVideoDisplayLayout(self):
+    def get_video_display_layout(self):
         return self.layout
 
-    def openNetworkStream(self):
-        self.videoWindow.openNetworkStream()
+    def open_network_stream(self):
+        self.video_window.open_network_stream()
 
-    def loadVideoFile(self):
-        self.videoWindow.loadVideoFile()
+    def load_video_file(self):
+        self.video_window.load_video_file()
 
+# Create main application window
 app = QtGui.QApplication([])
 app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
 mw.setWindowTitle('Video Stream Widget')
 
+# Create and set widget layout
+# Main widget container
 cw = QtGui.QWidget()
 ml = QtGui.QGridLayout()
 cw.setLayout(ml)
 mw.setCentralWidget(cw)
 
-videoStreamWidget = VideoStreamWidget()
+# Create Video Stream Widget
+video_stream_widget = VideoStreamWidget()
 
 mb = mw.menuBar()
-mediaMenu = mb.addMenu('&Media')
+media_menu = mb.addMenu('&Media')
 
-openNetworkStreamAction = QtGui.QAction('Open Network Stream', mw)
-openNetworkStreamAction.setShortcut('Ctrl+N')
-openNetworkStreamAction.setStatusTip('Input video stream link')
-openNetworkStreamAction.triggered.connect(videoStreamWidget.openNetworkStream)
-mediaMenu.addAction(openNetworkStreamAction)
+open_network_stream_action = QtGui.QAction('Open Network Stream', mw)
+open_network_stream_action.setShortcut('Ctrl+N')
+open_network_stream_action.setStatusTip('Input video stream link')
+open_network_stream_action.triggered.connect(video_stream_widget.open_network_stream)
+media_menu.addAction(open_network_stream_action)
 
-openMediaFileAction = QtGui.QAction('Open Media File', mw)
-openMediaFileAction.setShortcut('Ctrl+O')
-openMediaFileAction.setStatusTip('Open media file')
-openMediaFileAction.triggered.connect(videoStreamWidget.loadVideoFile)
-mediaMenu.addAction(openMediaFileAction)
+open_media_file_action = QtGui.QAction('Open Media File', mw)
+open_media_file_action.setShortcut('Ctrl+O')
+open_media_file_action.setStatusTip('Open media file')
+open_media_file_action.triggered.connect(video_stream_widget.load_video_file)
+media_menu.addAction(open_media_file_action)
 
-ml.addLayout(videoStreamWidget.getVideoDisplayLayout(),0,0)
+ml.addLayout(video_stream_widget.get_video_display_layout(),0,0)
 
 mw.show()
 
 if __name__ == '__main__':
     if(sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
         QtGui.QApplication.instance().exec_()
+

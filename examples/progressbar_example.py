@@ -1,21 +1,23 @@
-import sys
 from PyQt4 import QtGui, QtCore
+import sys
+
+"""Progressbar Widget Example"""
 
 class ProgessbarWidget(QtGui.QWidget):
     def __init__(self, parent=None):
         super(ProgessbarWidget, self).__init__(parent)
         
-        self.progressBar = QtGui.QProgressBar(self)
-        self.progressBar.setGeometry(30, 40, 200, 25)
+        self.progressbar = QtGui.QProgressBar(self)
+        self.progressbar.setGeometry(30, 40, 200, 25)
 
         self.button = QtGui.QPushButton('Start', self)
-        self.button.clicked.connect(self.toggleProgressbar)
+        self.button.clicked.connect(self.toggle_progressbar)
 
         self.timer = QtCore.QBasicTimer()
         self.step = 0
         
         self.layout = QtGui.QGridLayout()
-        self.layout.addWidget(self.progressBar,0,0)
+        self.layout.addWidget(self.progressbar,0,0)
         self.layout.addWidget(self.button,1,0)
 
     def timerEvent(self, e):
@@ -25,31 +27,35 @@ class ProgessbarWidget(QtGui.QWidget):
             return
             
         self.step = self.step + 1
-        self.progressBar.setValue(self.step)
+        self.progressbar.setValue(self.step)
 
-    def toggleProgressbar(self):
+    def toggle_progressbar(self):
         if self.timer.isActive():
             self.timer.stop()
             self.button.setText('Start')
         else:
             self.timer.start(50,self)
             self.button.setText('Stop')
-    def getProgressbarWidgetLayout(self):
+    def get_progressbar_widget_layout(self):
         return self.layout
 
+# Create main application window
 app = QtGui.QApplication([])
 app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
-mw.setWindowTitle('LCD Display w/ Slider Example')
+mw.setWindowTitle('Progressbar Example')
 
+# Create and set widget layout
+# Main widget container
 cw = QtGui.QWidget()
 ml = QtGui.QGridLayout()
 cw.setLayout(ml)
 mw.setCentralWidget(cw)
 
-progressBar = ProgessbarWidget()
+# Create progressbar Widget
+progressbar = ProgessbarWidget()
 
-ml.addLayout(progressBar.getProgressbarWidgetLayout(),0,0)
+ml.addLayout(progressbar.get_progressbar_widget_layout(),0,0)
 
 mw.show()
 

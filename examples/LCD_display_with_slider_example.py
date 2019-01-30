@@ -1,5 +1,7 @@
-import sys
 from PyQt4 import QtGui, QtCore
+import sys
+
+"""LCD Display Widget"""
 
 class LCDDisplayWidget(QtGui.QWidget):
     def __init__(self, parent=None):
@@ -17,22 +19,26 @@ class LCDDisplayWidget(QtGui.QWidget):
 
         self.slider.valueChanged.connect(self.LCD.display)
         
-    def getLCDDisplayLayout(self):
+    def get_LCD_display_layout(self):
         return self.layout
 
+# Create main application window
 app = QtGui.QApplication([])
 app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
 mw.setWindowTitle('LCD Display w/ Slider Example')
 
+# Create and set widget layout
+# Main widget container
 cw = QtGui.QWidget()
 ml = QtGui.QGridLayout()
 cw.setLayout(ml)
 mw.setCentralWidget(cw)
 
-LCDDisplay = LCDDisplayWidget()
+# Create LCD Display Widget
+LCD_display = LCDDisplayWidget()
 
-ml.addLayout(LCDDisplay.getLCDDisplayLayout(),0,0)
+ml.addLayout(LCD_display.get_LCD_display_layout(),0,0)
 
 mw.show()
 
