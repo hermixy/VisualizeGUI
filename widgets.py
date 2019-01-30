@@ -9,11 +9,24 @@ import time
 from threading import Thread
 import cv2
 
-# ==================================================================
-# Plot with fixed data moving right to left
-# Adjustable fixed x-axis, dynamic y-axis, data does not shrink
-# ==================================================================
+"""Modular widget classes 
+
+ZMQPlotWidget: Scrolling plot with data input from ZMQ socket
+RotationalControllerPlotWidget: Scrolling plot with data input from ZMQ socket
+PlotColorWidget: Changes plot color
+CrosshairPlotWidget: Scrolling plot with crosshair
+VideoStreamWidget: Video player capable of loading in media and opening network streams
+    VideoWindowWidget: Main container for video frame
+    OverlayWidget: Invisible overlay container on top of video frame
+    CrosshairWidget: Invisbile plot with crosshair on top of overlay
+"""
+
 class ZMQPlotWidget(QtGui.QWidget):
+    """Plot with fixed data moving right to left
+
+    Adjustable fixed x-axis, dynamic y-axis, data does not shrink
+    """
+
     def __init__(self, ZMQ_address, ZMQ_topic, ZMQ_frequency, parent=None):
         super(ZMQPlotWidget, self).__init__(parent)
         
@@ -26,134 +39,139 @@ class ZMQPlotWidget(QtGui.QWidget):
         # Frequency to update plot (ms)
         # USE FOR TIMER.TIMER (ms)
         self.ZMQ_TIMER_FREQUENCY = self.ZMQ_FREQUENCY * 1000
-        self.dataTimeout = 1
+        self.DATA_TIMEOUT = 1
 
         # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 0
         self.ZMQ_LEFT_X = -10
         self.ZMQ_RIGHT_X = 0
-        self.ZMQ_X_Axis = np.arange(self.ZMQ_LEFT_X, self.ZMQ_RIGHT_X, self.ZMQ_FREQUENCY)
-        self.ZMQBuffer = int((abs(self.ZMQ_LEFT_X) + abs(self.ZMQ_RIGHT_X))/self.ZMQ_FREQUENCY)
-        self.ZMQData = [] 
-        self.oldZMQDataPoint = 0
+        self.ZMQ_x_axis = np.arange(self.ZMQ_LEFT_X, self.ZMQ_RIGHT_X, self.ZMQ_FREQUENCY)
+        self.ZMQ_buffer = int((abs(self.ZMQ_LEFT_X) + abs(self.ZMQ_RIGHT_X))/self.ZMQ_FREQUENCY)
+        self.ZMQ_data = [] 
+        self.old_ZMQ_data_point = 0
         
         # Create ZMQ Plot Widget
-        self.ZMQPlot = pg.PlotWidget()
-        self.ZMQPlot.plotItem.setMouseEnabled(x=False, y=False)
-        self.ZMQPlot.setXRange(self.ZMQ_LEFT_X, self.ZMQ_RIGHT_X)
-        self.ZMQPlot.setTitle('ZMQ Plot')
-        self.ZMQPlot.setLabel('left', 'Value')
-        self.ZMQPlot.setLabel('bottom', 'Time (s)')
+        self.ZMQ_plot_widget = pg.PlotWidget()
+        self.ZMQ_plot_widget.plotItem.setMouseEnabled(x=False, y=False)
+        self.ZMQ_plot_widget.setXRange(self.ZMQ_LEFT_X, self.ZMQ_RIGHT_X)
+        self.ZMQ_plot_widget.setTitle('ZMQ Plot')
+        self.ZMQ_plot_widget.setLabel('left', 'Value')
+        self.ZMQ_plot_widget.setLabel('bottom', 'Time (s)')
 
-        self.ZMQPlotter = self.ZMQPlot.plot()
-        self.ZMQPlotter.setPen(32,201,151)
+        self.ZMQ_plot = self.ZMQ_plot_widget.plot()
+        self.ZMQ_plot.setPen(32,201,151)
         
         self.layout = QtGui.QGridLayout()
-        self.layout.addWidget(self.ZMQPlot)
+        self.layout.addWidget(self.ZMQ_plot_widget)
         
         # Setup socket port and topic using pub/sub system
-        self.ZMQ_TCP_Port = ZMQ_address
-        self.ZMQ_Topic = ZMQ_topic
+        self.ZMQ_TCP_address = ZMQ_address
+        self.ZMQ_topic = ZMQ_topic
 
-        self.initialCheckValidPort()
+        self.initial_check_valid_port()
         self.start()
         
-    def initialCheckValidPort(self):
+    def initial_check_valid_port(self):
+        """Attempts to establish initial ZMQ socket connection"""
+
         try:
             context = zmq.Context()
             socket = context.socket(zmq.SUB)
-            socket.connect(self.ZMQ_TCP_Port)
-            socket.setsockopt(zmq.SUBSCRIBE, self.ZMQ_Topic)
+            socket.connect(self.ZMQ_TCP_address)
+            socket.setsockopt(zmq.SUBSCRIBE, self.ZMQ_topic)
             # Check for valid data within time interval in seconds (s)
-            time_end = time.time() + self.dataTimeout
+            time_end = time.time() + self.DATA_TIMEOUT
             while time.time() < time_end:
                 try:
                     topic, data = socket.recv(zmq.NOBLOCK).split()
-                    self.updateZMQPlotAddress(self.ZMQ_TCP_Port, self.ZMQ_Topic)
+                    self.update_ZMQ_plot_address(self.ZMQ_TCP_address, self.ZMQ_topic)
                     self.verified = True
                     return
                 except zmq.ZMQError, e:
                     # No data arrived
                     if e.errno == zmq.EAGAIN:
                         pass
-                    else:
-                        print("real error")
         # Invalid argument
         except zmq.ZMQError, e:
             self.verified = False
 
-    def updateZMQPlotAddress(self, address, topic):
-        self.ZMQ_TCP_Port = address 
-        self.ZMQ_Topic = topic
-        self.ZMQContext = zmq.Context()
-        self.ZMQSocket = self.ZMQContext.socket(zmq.SUB)
-        self.ZMQSocket.connect(self.ZMQ_TCP_Port)
-        self.ZMQSocket.setsockopt(zmq.SUBSCRIBE, self.ZMQ_Topic)
+    def update_ZMQ_plot_address(self, address, topic):
+        """Sets ZMQ socket connection with given address and topic"""
+
+        self.ZMQ_TCP_address = address 
+        self.ZMQ_topic = topic
+        self.ZMQ_context = zmq.Context()
+        self.ZMQ_socket = self.ZMQ_context.socket(zmq.SUB)
+        self.ZMQ_socket.connect(self.ZMQ_TCP_address)
+        self.ZMQ_socket.setsockopt(zmq.SUBSCRIBE, self.ZMQ_topic)
         
-    def ZMQPlotUpdater(self):
+    def ZMQ_plot_updater(self):
+        """Reads position value from device and updates plot buffer"""
+
         if self.verified:
             # Receives (topic, data)
             try:
-                self.topic, self.ZMQDataPoint = self.ZMQSocket.recv().split()
-                self.oldZMQDataPoint = self.ZMQDataPoint
+                self.topic, self.ZMQ_data_point = self.ZMQ_socket.recv().split()
+                self.old_ZMQ_data_point = self.ZMQ_data_point
             except zmq.ZMQError, e:
                 # No data arrived
                 if e.errno == zmq.EAGAIN:
-                    self.ZMQDataPoint = self.oldZMQDataPoint
+                    self.ZMQ_data_point = self.old_ZMQ_data_point
 
-            if len(self.ZMQData) >= self.ZMQBuffer:
-                self.ZMQData.pop(0)
+            if len(self.ZMQ_data) >= self.ZMQ_buffer:
+                self.ZMQ_data.pop(0)
             
-            self.ZMQData.append(float(self.ZMQDataPoint))
-            self.ZMQPlotter.setData(self.ZMQ_X_Axis[len(self.ZMQ_X_Axis) - len(self.ZMQData):], self.ZMQData)
+            self.ZMQ_data.append(float(self.ZMQ_data_point))
+            self.ZMQ_plot.setData(self.ZMQ_x_axis[len(self.ZMQ_x_axis) - len(self.ZMQ_data):], self.ZMQ_data)
 
-    def clearZMQPlot(self):
-        self.ZMQData = []
+    def clear_ZMQ_plot(self):
+        self.ZMQ_data = []
 
-    def changePlotColor(self, color):
-        self.ZMQPlotter.setPen(color)
+    def change_plot_color(self, color):
+        self.ZMQ_plot.setPen(color)
     
-    def getZMQPlotAddress(self):
-        return self.ZMQ_TCP_Port
+    def get_ZMQ_plot_address(self):
+        return self.ZMQ_TCP_address
 
-    def getZMQTopic(self):
-        return self.ZMQ_Topic
+    def get_ZMQ_topic(self):
+        return self.ZMQ_topic
     
-    def getZMQPlotWidget(self):
-        return self.ZMQPlot
+    def get_ZMQ_plot_widget(self):
+        return self.ZMQ_plot_widget
 
     # Version with QTimer (ms)
-    def getZMQTimerFrequency(self):
+    def get_ZMQ_timer_frequency(self):
         return self.ZMQ_TIMER_FREQUENCY
 
     # Version with time.sleep (s) 
-    def getZMQFrequency(self):
+    def get_ZMQ_frequency(self):
         return self.ZMQ_FREQUENCY
 
-    def getZMQPlotLayout(self):
+    def get_ZMQ_plot_layout(self):
         return self.layout
 
-    def getVerified(self):
+    def get_verified(self):
         return self.verified
 
-    def setVerified(self, value):
+    def set_verified(self, value):
         self.verified = value
 
     def start(self):
-        self.ZMQPlotTimer = QtCore.QTimer()
-        self.ZMQPlotTimer.timeout.connect(self.ZMQPlotUpdater)
-        self.ZMQPlotTimer.start(self.getZMQTimerFrequency())
+        self.ZMQ_plot_timer = QtCore.QTimer()
+        self.ZMQ_plot_timer.timeout.connect(self.ZMQ_plot_updater)
+        self.ZMQ_plot_timer.start(self.get_ZMQ_timer_frequency())
 
-# ==================================================================
-# Plot with fixed data moving right to left
-# Adjustable fixed x-axis, dynamic y-axis, data does not shrink
-# ==================================================================
 class RotationalControllerPlotWidget(QtGui.QWidget):
+    """Plot with fixed data moving right to left
+
+    Adjustable fixed x-axis, dynamic y-axis, data does not shrink
+    """
+
     def __init__(self, position_address, position_topic, position_frequency, parameter_address, parent=None):
         super(RotationalControllerPlotWidget, self).__init__(parent)
         
-        self.dataTimeout = 1
-        self.positionVerified = False
-        self.parameterVerified = False
+        self.DATA_TIMEOUT = 1
+        self.position_verified = False
+        self.parameter_verified = False
         # FREQUENCY HAS TO BE SAME AS SERVER'S FREQUENCY
         # Desired Frequency (Hz) = 1 / self.FREQUENCY
         # USE FOR TIME.SLEEP (s)
@@ -166,564 +184,618 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
         # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 0
         self.LEFT_X = -10
         self.RIGHT_X = 0
-        self.X_Axis = np.arange(self.LEFT_X, self.RIGHT_X, self.FREQUENCY)
+        self.x_axis = np.arange(self.LEFT_X, self.RIGHT_X, self.FREQUENCY)
         self.buffer = int((abs(self.LEFT_X) + abs(self.RIGHT_X))/self.FREQUENCY)
         self.data = [] 
 
         # Create Plot Widget 
-        self.plot = pg.PlotWidget()
-        self.plot.plotItem.setMouseEnabled(x=False, y=False)
-        self.plot.setXRange(self.LEFT_X, self.RIGHT_X)
-        self.plot.setTitle('Rotational Controller Position')
-        self.plot.setLabel('left', 'Value')
-        self.plot.setLabel('bottom', 'Time (s)')
+        self.rotational_plot_widget = pg.PlotWidget()
+        self.rotational_plot_widget.plotItem.setMouseEnabled(x=False, y=False)
+        self.rotational_plot_widget.setXRange(self.LEFT_X, self.RIGHT_X)
+        self.rotational_plot_widget.setTitle('Rotational Controller Position')
+        self.rotational_plot_widget.setLabel('left', 'Value')
+        self.rotational_plot_widget.setLabel('bottom', 'Time (s)')
 
-        self.plotter = self.plot.plot()
-        self.plotter.setPen(232,234,246)
+        self.rotational_plot = self.rotational_plot_widget.plot()
+        self.rotational_plot.setPen(232,234,246)
 
         self.layout = QtGui.QGridLayout()
-        self.layout.addWidget(self.plot)
+        self.layout.addWidget(self.rotational_plot_widget)
 
-        self.positionAddress = position_address
-        self.positionTopic = position_topic
-        self.parameterAddress = parameter_address
+        self.position_address = position_address
+        self.position_topic = position_topic
+        self.parameter_address = parameter_address
 
-        self.initialCheckValidPositionPort()
-        self.initialCheckValidParameterPort()
-        self.readPositionThread()
+        self.initial_check_valid_position_port()
+        self.initial_check_valid_parameter_port()
+        self.read_position_thread()
         self.start()
 
-    def initialCheckValidPositionPort(self):
+    def initial_check_valid_position_port(self):
+        """Attempts to establish ZMQ connection with initial position port settings"""
+
         try:
             context = zmq.Context()
             socket = context.socket(zmq.SUB)
-            socket.connect(self.positionAddress)
-            socket.setsockopt(zmq.SUBSCRIBE, self.positionTopic)
+            socket.connect(self.position_address)
+            socket.setsockopt(zmq.SUBSCRIBE, self.position_topic)
             # Check for valid data within time interval in seconds (s)
-            time_end = time.time() + self.dataTimeout
+            time_end = time.time() + self.DATA_TIMEOUT
             while time.time() < time_end:
                 try:
                     topic, data = socket.recv(zmq.NOBLOCK).split()
-                    self.updatePositionPlotAddress(self.positionAddress, self.positionTopic)
-                    self.positionVerified = True
+                    self.update_position_plot_address(self.position_address, self.position_topic)
+                    self.position_verified = True
                     return
                 except zmq.ZMQError, e:
                     # No data arrived
                     if e.errno == zmq.EAGAIN:
                         pass
-                    else:
-                        print("real error")
         # Invalid argument
         except zmq.ZMQError, e:
-            self.positionVerified = False
+            self.position_verified = False
 
-    def initialCheckValidParameterPort(self):
+    def initial_check_valid_parameter_port(self):
+        """Attempts to establish ZMQ connection with initial parameter port settings"""
+
         try:
             context = zmq.Context()
             socket = context.socket(zmq.REQ)
             # Prevent program from hanging after closing
             socket.setsockopt(zmq.LINGER, 0)
-            socket.connect(self.parameterAddress)
+            socket.connect(self.parameter_address)
             socket.send("info?")
             # Check for valid data within time interval in seconds (s)
-            time_end = time.time() + self.dataTimeout
+            time_end = time.time() + self.DATA_TIMEOUT
             while time.time() < time_end:
                 try:
                     parameter_information = [x.strip() for x in socket.recv(zmq.NOBLOCK).split(',')]
-                    self.velocityMin, self.velocityMax, self.accelerationMin, self.accelerationMax, self.positionMin, self.positionMax, self.homeFlag, self.units = parameter_information
-                    self.updateParameterPlotAddress(self.parameterAddress)
-                    self.parameterVerified = True
+                    self.velocity_min, self.velocity_max, self.acceleration_min, self.acceleration_max, self.position_min, self.position_max, self.home_flag, self.units = parameter_information
+                    self.update_parameter_plot_address(self.parameter_address)
+                    self.parameter_verified = True
                     return
                 except zmq.ZMQError, e:
                     # No data arrived
                     if e.errno == zmq.EAGAIN:
                         pass
-                    else:
-                        print("real error")
         # Invalid argument
         except zmq.ZMQError, e:
-            self.parameterVerified = False
+            self.parameter_verified = False
 
-    def updatePositionPlotAddress(self, address, topic): 
-        self.positionAddress = address
-        self.positionTopic = topic
-        self.positionContext = zmq.Context()
-        self.positionSocket = self.positionContext.socket(zmq.SUB)
-        self.positionSocket.connect(self.positionAddress)
-        self.positionSocket.setsockopt(zmq.SUBSCRIBE, self.positionTopic)
-        return (self.positionContext, self.positionSocket, self.positionTopic)
+    def update_position_plot_address(self, address, topic): 
+        """Establishes ZMQ connection with given port settings"""
+        
+        self.position_address = address
+        self.position_topic = topic
+        self.position_context = zmq.Context()
+        self.position_socket = self.position_context.socket(zmq.SUB)
+        self.position_socket.connect(self.position_address)
+        self.position_socket.setsockopt(zmq.SUBSCRIBE, self.position_topic)
+        return (self.position_context, self.position_socket, self.position_topic)
 
-    def updateParameterPlotAddress(self, address): 
-        self.parameterAddress = address
-        self.parameterContext = zmq.Context()
-        self.parameterSocket = self.parameterContext.socket(zmq.REQ)
+    def update_parameter_plot_address(self, address): 
+        """Establishes ZMQ connection with given port settings"""
+
+        self.parameter_address = address
+        self.parameter_context = zmq.Context()
+        self.parameter_socket = self.parameter_context.socket(zmq.REQ)
         # Prevent program from hanging after closing
-        self.parameterSocket.setsockopt(zmq.LINGER, 0)
-        self.parameterSocket.connect(self.parameterAddress)
-        self.parameterSocket.send('info?')
-        parameter_information = [x.strip() for x in self.parameterSocket.recv().split(',')]
-        self.velocityMin, self.velocityMax, self.accelerationMin, self.accelerationMax, self.positionMin, self.positionMax, self.homeFlag, self.units = parameter_information
-        return (self.parameterContext, self.parameterSocket)
+        self.parameter_socket.setsockopt(zmq.LINGER, 0)
+        self.parameter_socket.connect(self.parameter_address)
+        self.parameter_socket.send('info?')
+        parameter_information = [x.strip() for x in self.parameter_socket.recv().split(',')]
+        self.velocity_min, self.velocity_max, self.acceleration_min, self.acceleration_max, self.position_min, self.position_max, self.home_flag, self.units = parameter_information
+        return (self.parameter_context, self.parameter_socket)
 
     def start(self):
-        self.positionUpdateTimer = QtCore.QTimer()
-        self.positionUpdateTimer.timeout.connect(self.plotUpdater)
-        self.positionUpdateTimer.start(self.getRotationalControllerTimerFrequency())
+        """Initiates timer to update plot"""
 
-    def readPositionThread(self):
-        self.currentPositionValue = 0
-        self.oldCurrentPositionValue = 0
-        self.positionUpdateThread = Thread(target=self.readPosition, args=())
-        self.positionUpdateThread.daemon = True
-        self.positionUpdateThread.start()
+        self.position_update_timer = QtCore.QTimer()
+        self.position_update_timer.timeout.connect(self.plot_updater)
+        self.position_update_timer.start(self.get_rotational_controller_timer_frequency())
 
-    def readPosition(self):
-        frequency = self.getRotationalControllerFrequency()
+    def read_position_thread(self):
+        """Start background thread to read position from the device"""
+
+        self.current_position_value = 0
+        self.old_current_position_value = 0
+        self.position_update_thread = Thread(target=self.read_position, args=())
+        self.position_update_thread.daemon = True
+        self.position_update_thread.start()
+
+    def read_position(self):
+        """Read position from device socket"""
+
+        frequency = self.get_rotational_controller_frequency()
         while True:
             try:
-                topic, self.currentPositionValue = self.positionSocket.recv(zmq.NOBLOCK).split()
+                topic, self.current_position_value = self.position_socket.recv().split()
                 # Change to 0 since Rotational controller reports 0 as -0
-                if self.currentPositionValue == '-0.00':
-                    self.currentPositionValue = '0.00'
-                self.oldCurrentPositionValue = self.currentPositionValue
-            # Resource temporarily unavailable
-            except zmq.ZMQError, e:
-                if e.errno == zmq.EAGAIN:
-                    self.currentPositionValue = self.oldCurrentPositionValue
+                if self.current_position_value == '-0.00':
+                    self.current_position_value = '0.00'
+                self.old_current_position_value = self.current_position_value
+            except AttributeError:
+                self.current_position_value = self.old_current_position_value
             time.sleep(frequency)
 
-    def plotUpdater(self):
-        if self.positionVerified:
-            self.dataPoint = float(self.currentPositionValue)
+    def plot_updater(self):
+        """Updates data buffer with current position value"""
+
+        if self.position_verified:
+            self.data_point = float(self.current_position_value)
 
             if len(self.data) >= self.buffer:
                 self.data.pop(0)
-            self.data.append(self.dataPoint)
-            self.plotter.setData(self.X_Axis[len(self.X_Axis) - len(self.data):], self.data)
+            self.data.append(self.data_point)
+            self.rotational_plot.setData(self.x_axis[len(self.x_axis) - len(self.data):], self.data)
 
-    def clearRotationalControllerPlot(self):
+    def clear_rotational_controller_plot(self):
         self.data = []
 
-    def changePlotColor(self, color):
-        self.plotter.setPen(color)
+    def change_plot_color(self, color):
+        self.rotational_plot.setPen(color)
 
-    def getParameterSocket(self):
-        if self.parameterVerified:
-            return self.parameterSocket
+    def get_parameter_socket(self):
+        if self.parameter_verified:
+            return self.parameter_socket
         else: 
             return None
 
-    def getPositionSocket(self):
-        if self.positionVerified:
-            return self.positionSocket
+    def get_position_socket(self):
+        if self.position_verified:
+            return self.position_socket
         else:
             return None
 
-    def getRotationalControllerFrequency(self):
+    def get_rotational_controller_frequency(self):
         return self.FREQUENCY
     
-    def getRotationalControllerTimerFrequency(self):
+    def get_rotational_controller_timer_frequency(self):
         return self.TIMER_FREQUENCY
 
-    def getRotationalControllerLayout(self):
+    def get_rotational_controller_layout(self):
         return self.layout
 
-    def getRotationalControllerPlotWidget(self):
-        return self.plot
+    def get_rotational_controller_plot_widget(self):
+        return self.rotational_plot_widget
 
-    def getParameterInformation(self):
-        return (self.velocityMin, self.velocityMax, self.accelerationMin, self.accelerationMax, self.positionMin, self.positionMax, self.homeFlag, self.units)
+    def get_parameter_information(self):
+        return (self.velocity_min, self.velocity_max, self.acceleration_min, self.acceleration_max, self.position_min, self.position_max, self.home_flag, self.units)
 
-    def getCurrentPositionValue(self):
-        return self.currentPositionValue
+    def get_current_position_value(self):
+        return self.current_position_value
 
-    def getPositionVerified(self):
-        return self.positionVerified
+    def get_position_verified(self):
+        return self.position_verified
 
-    def getParameterVerified(self):
-        return self.parameterVerified
+    def get_parameter_verified(self):
+        return self.parameter_verified
 
-    def setPositionVerified(self, value):
-        self.positionVerified = value
+    def set_position_verified(self, value):
+        self.position_verified = value
 
-    def setParameterVerified(self, value):
-        self.parameterVerified = value
+    def set_parameter_verified(self, value):
+        self.parameter_verified = value
 
-    def getPositionTopic(self):
-        return self.positionTopic
+    def get_position_topic(self):
+        return self.position_topic
 
 class PlotColorWidget(QtGui.QColorDialog):
-    def __init__(self, plotObject, parent=None):
+    """Opens color palette to change plot color"""
+
+    def __init__(self, plot_object, parent=None):
         super(PlotColorWidget, self).__init__(parent)
         # Opens color palette selector
         self.palette = self.getColor()
         self.color = str(self.palette.name())
         if self.color != '#000000':
-            plotObject.changePlotColor(self.color)
+            plot_object.change_plot_color(self.color)
 
-# ==================================================================
-# Plot with crosshair
-# ==================================================================
 class CrosshairPlotWidget(QtGui.QWidget):
+    """Scrolling plot with crosshair"""
+
     def __init__(self, parent=None):
         super(CrosshairPlotWidget, self).__init__(parent)
         
         # Use for time.sleep (s)
-        self.frequency = .025
+        self.FREQUENCY = .025
         # Use for timer.timer (ms)
-        self.timer_frequency = self.frequency * 1000
+        self.TIMER_FREQUENCY = self.FREQUENCY * 1000
 
-        self.left_x = -10
-        self.right_x = 0
-        self.x_axis = np.arange(self.left_x, self.right_x, self.frequency)
-        self.buffer = int((abs(self.left_x) + abs(self.right_x))/self.frequency)
+        self.LEFT_X = -10
+        self.RIGHT_X = 0
+        self.x_axis = np.arange(self.LEFT_X, self.RIGHT_X, self.FREQUENCY)
+        self.buffer = int((abs(self.LEFT_X) + abs(self.RIGHT_X))/self.FREQUENCY)
         self.data = []
         
-        self.crosshairPlot = pg.PlotWidget()
-        self.crosshairPlot.setXRange(self.left_x, self.right_x)
-        self.crosshairPlot.setLabel('left', 'Value')
-        self.crosshairPlot.setLabel('bottom', 'Time (s)')
-        self.crosshairColor = (196,220,255)
+        self.crosshair_plot_widget = pg.PlotWidget()
+        self.crosshair_plot_widget.setXRange(self.LEFT_X, self.RIGHT_X)
+        self.crosshair_plot_widget.setLabel('left', 'Value')
+        self.crosshair_plot_widget.setLabel('bottom', 'Time (s)')
+        self.crosshair_color = (196,220,255)
 
-        self.plot = self.crosshairPlot.plot()
+        self.crosshair_plot = self.crosshair_plot_widget.plot()
 
         self.layout = QtGui.QGridLayout()
-        self.layout.addWidget(self.crosshairPlot)
+        self.layout.addWidget(self.crosshair_plot_widget)
         
-        self.crosshairPlot.plotItem.setAutoVisible(y=True)
-        self.vLine = pg.InfiniteLine(angle=90)
-        self.hLine = pg.InfiniteLine(angle=0, movable=False)
-        self.vLine.setPen(self.crosshairColor)
-        self.hLine.setPen(self.crosshairColor)
-        self.crosshairPlot.setAutoVisible(y=True)
-        self.crosshairPlot.addItem(self.vLine, ignoreBounds=True)
-        self.crosshairPlot.addItem(self.hLine, ignoreBounds=True)
+        self.crosshair_plot_widget.plotItem.setAutoVisible(y=True)
+        self.vertical_line = pg.InfiniteLine(angle=90)
+        self.horizontal_line = pg.InfiniteLine(angle=0, movable=False)
+        self.vertical_line.setPen(self.crosshair_color)
+        self.horizontal_line.setPen(self.crosshair_color)
+        self.crosshair_plot_widget.setAutoVisible(y=True)
+        self.crosshair_plot_widget.addItem(self.vertical_line, ignoreBounds=True)
+        self.crosshair_plot_widget.addItem(self.horizontal_line, ignoreBounds=True)
         
-        self.crosshairUpdate = pg.SignalProxy(self.crosshairPlot.scene().sigMouseMoved, rateLimit=60, slot=self.updateCrosshair)
+        self.crosshair_update = pg.SignalProxy(self.crosshair_plot_widget.scene().sigMouseMoved, rateLimit=60, slot=self.update_crosshair)
 
         self.start()
 
-    def plotUpdater(self):
-        self.dataPoint = random.randint(1,101)
+    def plot_updater(self):
+        """Updates data buffer with data value"""
+
+        self.data_point = random.randint(1,101)
         if len(self.data) >= self.buffer:
             self.data.pop(0)
-        self.data.append(float(self.dataPoint))
-        self.plot.setData(self.x_axis[len(self.x_axis) - len(self.data):], self.data)
+        self.data.append(float(self.data_point))
+        self.crosshair_plot.setData(self.x_axis[len(self.x_axis) - len(self.data):], self.data)
 
-    def updateCrosshair(self, event):
+    def update_crosshair(self, event):
+        """Paint crosshair on mouse"""
+
         coordinates = event[0]  
-        if self.crosshairPlot.sceneBoundingRect().contains(coordinates):
-            mousePoint = self.crosshairPlot.plotItem.vb.mapSceneToView(coordinates)
-            index = mousePoint.x()
-            if index > self.left_x and index <= self.right_x:
-                self.crosshairPlot.setTitle("<span style='font-size: 12pt'>x=%0.1f,   <span style='color: red'>y=%0.1f</span>" % (mousePoint.x(), mousePoint.y()))
-            self.vLine.setPos(mousePoint.x())
-            self.hLine.setPos(mousePoint.y())
+        if self.crosshair_plot_widget.sceneBoundingRect().contains(coordinates):
+            mouse_point = self.crosshair_plot_widget.plotItem.vb.mapSceneToView(coordinates)
+            index = mouse_point.x()
+            if index > self.LEFT_X and index <= self.RIGHT_X:
+                self.crosshair_plot_widget.setTitle("<span style='font-size: 12pt'>x=%0.1f,   <span style='color: red'>y=%0.1f</span>" % (mouse_point.x(), mouse_point.y()))
+            self.vertical_line.setPos(mouse_point.x())
+            self.horizontal_line.setPos(mouse_point.y())
 
     def start(self):
         self.timer = QtCore.QTimer()
-        self.timer.timeout.connect(self.plotUpdater)
-        self.timer.start(self.getTimerFrequency())
+        self.timer.timeout.connect(self.plot_updater)
+        self.timer.start(self.get_timer_frequency())
 
-    def getCrosshairPlotLayout(self):
+    def get_crosshair_plot_layout(self):
         return self.layout
 
-    def getTimerFrequency(self):
-        return self.timer_frequency
+    def get_timer_frequency(self):
+        return self.TIMER_FREQUENCY
 
-# ==================================================================
-# Video Stream widget with crosshair enable/disable
-# ==================================================================
-class VideoWindow(QtGui.QWidget):
+class VideoWindowWidget(QtGui.QWidget):
+    """Video Window widget with crosshair enable/disable"""
+
     def __init__(self, parent=None):
-        super(VideoWindow, self).__init__(parent)
+        super(VideoWindowWidget, self).__init__(parent)
 
         self.capture = None
-        self.videoFileName = None
-        self.isVideoFileOrStreamLoaded = False
+        self.video_file_name = None
+        self.is_video_file_or_stream_loaded = False
         self.pause = True
-        self.minWindowWidth = 600
-        self.minWindowHeight = 600
-
-        self.offset = 9
+        self.MIN_WINDOW_WIDTH = 600
+        self.MIN_WINDOW_HEIGHT = 600
+        
+        # Overlay and plot difference so translate by offset
+        self.OFFSET = 9
         self.placeholder_image_file = 'doc/placeholder5.PNG'
-        self.videoFilterFormats = self.tr("Video files(*.mp4 *.gif *.mov *.flv *.avi *.wmv)")
+        self.video_filter_formats = self.tr("Video files(*.mp4 *.gif *.mov *.flv *.avi *.wmv)")
 
-        self.frequency = .002
-        self.timer_frequency = self.frequency * 1000
-
-        self.videoFrame = QtGui.QLabel()
+        self.FREQUENCY = .002
+        self.TIMER_FREQUENCY = self.FREQUENCY * 1000
+        
+        # Ensure video frame is created before overlay
+        # since overlay with invisible crosshair plot is place above
+        self.video_frame = QtGui.QLabel()
         
         self.layout = QtGui.QGridLayout()
-        self.layout.addWidget(self.videoFrame,0,0)
+        self.layout.addWidget(self.video_frame,0,0)
 
-        self.initPlaceholderImage()
+        self.init_placeholder_image()
         self.setLayout(self.layout)
-        self.crosshairOverlay = Overlay(self)
-        self.displayCrosshair = True
+        self.crosshair_overlay = OverlayWidget(self)
+        self.display_crosshair = True
 
         self.timer = QtCore.QTimer()
-        self.timer.timeout.connect(self.setFrame)
-        self.getFrameThread = Thread(target=self.getFrame, args=())
-        self.getFrameThread.daemon = True
-        self.getFrameThread.start()
-        self.startCapture()
+        self.timer.timeout.connect(self.set_frame)
+        self.get_frame_thread = Thread(target=self.get_frame, args=())
+        self.get_frame_thread.daemon = True
+        self.get_frame_thread.start()
+        self.start_capture()
 
-    def initPlaceholderImage(self):
+    def init_placeholder_image(self):
+        """Set placeholder image when video is stopped"""
+
         self.placeholder_image = cv2.imread(self.placeholder_image_file)
         
         # Maintain aspect ratio
-        #self.placeholder_image = imutils.resize(self.placeholder_image, width=self.minWindowWidth)
-        self.placeholder_image = cv2.resize(self.placeholder_image, (self.minWindowWidth, self.minWindowHeight))
+        #self.placeholder_image = imutils.resize(self.placeholder_image, width=self.MIN_WINDOW_WIDTH)
+        self.placeholder_image = cv2.resize(self.placeholder_image, (self.MIN_WINDOW_WIDTH, self.MIN_WINDOW_HEIGHT))
 
         self.placeholder = QtGui.QImage(self.placeholder_image, self.placeholder_image.shape[1], self.placeholder_image.shape[0], QtGui.QImage.Format_RGB888).rgbSwapped()
         self.placeholder_image = QtGui.QPixmap.fromImage(self.placeholder)
-        self.videoFrame.setPixmap(self.placeholder_image)
+        self.video_frame.setPixmap(self.placeholder_image)
 
-    def alignCrosshair(self):
-        capture = cv2.VideoCapture(str(self.videoFileName))
+    def align_crosshair(self):
+        """Align crosshair with new loaded frame dimension"""
+
+        capture = cv2.VideoCapture(str(self.video_file_name))
         status, frame = capture.read()
-        frame = imutils.resize(frame, width=self.minWindowWidth)
-        self.resizedImageHeight = frame.shape[0]
-        frameHeight = self.size().height()
-        self.translate = (frameHeight - self.resizedImageHeight - (2 * self.offset))/2
+        frame = imutils.resize(frame, width=self.MIN_WINDOW_WIDTH)
+        self.resized_image_height = frame.shape[0]
+        frame_height = self.size().height()
+        self.translate = (frame_height - self.resized_image_height - (2 * self.OFFSET))/2
     
-    def startCapture(self):
+    def start_capture(self):
         self.pause = False
-        self.timer.start(self.timer_frequency)
+        self.timer.start(self.TIMER_FREQUENCY)
 
-    def pauseCapture(self):
+    def pause_capture(self):
         if not self.pause:
             self.pause = True
             self.timer.stop()
 
-    def stopCapture(self):
-        self.pauseCapture()
-        self.capture = cv2.VideoCapture(str(self.videoFileName))
+    def stop_capture(self):
+        self.pause_capture()
+        self.capture = cv2.VideoCapture(str(self.video_file_name))
 
-    def loadVideoFile(self):
-        self.videoFileName = QtGui.QFileDialog.getOpenFileName(self, 'Select .h264 Video File', '', self.videoFilterFormats)
-        if self.videoFileName:
-            self.isVideoFileOrStreamLoaded = True
+    def load_video_file(self):
+        """Open file explorer to select media file"""
+
+        self.video_file_name = QtGui.QFileDialog.getOpenFileName(self, 'Select .h264 Video File', '', self.video_filter_formats)
+        if self.video_file_name:
+            self.is_video_file_or_stream_loaded = True
             self.pause = False
-            self.capture = cv2.VideoCapture(str(self.videoFileName))
-            self.alignCrosshair()
+            self.capture = cv2.VideoCapture(str(self.video_file_name))
+            self.align_crosshair()
 
-    def openNetworkStream(self):
-        text, okPressed = QtGui.QInputDialog.getText(self, "Open Media", "Please enter a network URL:")
+    def open_network_stream(self):
+        """Opens popup dialog to enter IP network stream"""
+
+        text, pressed_status = QtGui.QInputDialog.getText(self, "Open Media", "Please enter a network URL:")
         link = str(text)
-        if okPressed and self.verifyNetworkStream(link):
-            self.isVideoFileOrStreamLoaded = True
+        if pressed_status and self.verify_network_stream(link):
+            self.is_video_file_or_stream_loaded = True
             self.pause = False
-            self.videoFileName = link
+            self.video_file_name = link
             self.capture = cv2.VideoCapture(link)
-            self.alignCrosshair()
+            self.align_crosshair()
             
-    def verifyNetworkStream(self, link):
+    def verify_network_stream(self, link):
+        """Attempts to receive a frame from given link"""
+
         cap = cv2.VideoCapture(link)
         if cap is None or not cap.isOpened():
-            print('Warning: unable to open video link')
             return False
         return True
 
-    def getFrame(self):
+    def get_frame(self):
+        """Reads frame, resizes, and converts image to pixmap"""
+
         while True:
             try:
                 if not self.pause and self.capture.isOpened():
                     status, self.frame = self.capture.read()
                     if self.frame is not None:
-                        self.frame = imutils.resize(self.frame, width=self.minWindowWidth)
+                        self.frame = imutils.resize(self.frame, width=self.MIN_WINDOW_WIDTH)
                         self.img = QtGui.QImage(self.frame, self.frame.shape[1], self.frame.shape[0], QtGui.QImage.Format_RGB888).rgbSwapped()
                         self.pix = QtGui.QPixmap.fromImage(self.img)
             # No frame in buffer so skip
             except AttributeError:
                 pass
-            time.sleep(self.frequency)
+            time.sleep(self.FREQUENCY)
 
-    def setFrame(self):
+    def set_frame(self):
+        """Sets pixmap image to video frame"""
+
         try:
-            self.videoFrame.setPixmap(self.pix)
+            self.video_frame.setPixmap(self.pix)
         # No frame in buffer so skip
         except AttributeError:
             pass
 
-    def getVideoWindowLayout(self):
+    def get_video_window_layout(self):
         return self.layout
     
-    def showCrosshair(self):
-        self.displayCrosshair = True
-        self.crosshairOverlay.show()
+    def show_crosshair(self):
+        self.display_crosshair = True
+        self.crosshair_overlay.show()
 
-    def hideCrosshair(self):
-        self.displayCrosshair = False 
-        self.crosshairOverlay.hide()
+    def hide_crosshair(self):
+        self.display_crosshair = False 
+        self.crosshair_overlay.hide()
 
     def resizeEvent(self, event):
-        self.crosshairOverlay.resize(event.size())
+        """GUI auto redraws environment"""
+
+        self.crosshair_overlay.resize(event.size())
         event.accept()
     
     def mousePressEvent(self, QMouseEvent):
-        if self.isVideoFileOrStreamLoaded and self.displayCrosshair:
-            self.x = self.crosshairOverlay.getX() 
-            self.y = self.crosshairOverlay.getY() - self.translate
+        """Automatically handles mouseclick input"""
+
+        if self.is_video_file_or_stream_loaded and self.display_crosshair:
+            self.x = self.crosshair_overlay.get_x() 
+            self.y = self.crosshair_overlay.get_y() - self.translate
             
-            if self.x > 0 and self.x < self.minWindowWidth and self.y > 0 and self.y < self.resizedImageHeight:
+            if self.x > 0 and self.x < self.MIN_WINDOW_WIDTH and self.y > 0 and self.y < self.resized_image_height:
                 c = self.img.pixel(self.x,self.y)
                 print(QtGui.QColor(c).getRgb())
-                self.crosshairOverlay.setUpdateDotFlag(True)
+                self.crosshair_overlay.set_update_dot_flag(True)
                 # Calling update automatically calls paintEvent()
                 self.update()
 
 class VideoStreamWidget(QtGui.QWidget):
+    """Widget capable of streaming video with RBG detection crosshair"""
+
     def __init__(self, parent=None):
         super(VideoStreamWidget, self).__init__(parent)
         
-        self.videoWindow = VideoWindow()
+        self.video_window = VideoWindowWidget()
 
-        self.startButton = QtGui.QPushButton('Start')
-        self.startButton.clicked.connect(self.videoWindow.startCapture)
-        self.pauseButton = QtGui.QPushButton('Pause')
-        self.pauseButton.clicked.connect(self.videoWindow.pauseCapture)
-        self.stopButton = QtGui.QPushButton('Stop')
-        self.stopButton.clicked.connect(self.videoWindow.stopCapture)
+        self.start_button = QtGui.QPushButton('Start')
+        self.start_button.clicked.connect(self.video_window.start_capture)
+        self.pause_button = QtGui.QPushButton('Pause')
+        self.pause_button.clicked.connect(self.video_window.pause_capture)
+        self.stop_button = QtGui.QPushButton('Stop')
+        self.stop_button.clicked.connect(self.video_window.stop_capture)
 
         self.layout = QtGui.QGridLayout()
-        self.buttonLayout = QtGui.QHBoxLayout()
-        self.buttonLayout.addWidget(self.startButton)
-        self.buttonLayout.addWidget(self.pauseButton)
-        self.buttonLayout.addWidget(self.stopButton)
+        self.button_layout = QtGui.QHBoxLayout()
+        self.button_layout.addWidget(self.start_button)
+        self.button_layout.addWidget(self.pause_button)
+        self.button_layout.addWidget(self.stop_button)
 
-        self.layout.addLayout(self.buttonLayout,0,0)
-        self.layout.addWidget(self.videoWindow,1,0)
+        self.layout.addLayout(self.button_layout,0,0)
+        self.layout.addWidget(self.video_window,1,0)
 
-    def getVideoDisplayLayout(self):
+    def get_video_display_layout(self):
         return self.layout
 
-    def openNetworkStream(self):
-        self.videoWindow.openNetworkStream()
+    def open_network_stream(self):
+        self.video_window.open_network_stream()
 
-    def loadVideoFile(self):
-        self.videoWindow.loadVideoFile()
+    def load_video_file(self):
+        self.video_window.load_video_file()
 
-    def showCrosshair(self):
-        self.videoWindow.showCrosshair()
+    def show_crosshair(self):
+        self.video_window.show_crosshair()
 
-    def hideCrosshair(self):
-        self.videoWindow.hideCrosshair()
+    def hide_crosshair(self):
+        self.video_window.hide_crosshair()
     
 class CrosshairWidget(QtGui.QWidget):
+    """Widget to draw crosshair on the screen
+    
+    Draws an invisible plot with a visible crosshair
+    """
+
     def __init__(self, parent=None):
         super(CrosshairWidget, self).__init__(parent)
         
-        # Create the crosshair (invisible plot)
-        self.crosshairPlot = pg.PlotWidget()
-        self.crosshairPlot.setBackground(background=None)
+        # Create the invisible plot
+        self.crosshair_plot = pg.PlotWidget()
+        self.crosshair_plot.setBackground(background=None)
 
-        self.crosshairPlot.plotItem.hideAxis('bottom') 
-        self.crosshairPlot.plotItem.hideAxis('left') 
-        self.crosshairPlot.plotItem.hideAxis('right') 
-        self.crosshairPlot.plotItem.hideAxis('top')
-        self.crosshairPlot.plotItem.setMouseEnabled(x=False, y=False)
+        self.crosshair_plot.plotItem.hideAxis('bottom') 
+        self.crosshair_plot.plotItem.hideAxis('left') 
+        self.crosshair_plot.plotItem.hideAxis('right') 
+        self.crosshair_plot.plotItem.hideAxis('top')
+        self.crosshair_plot.plotItem.setMouseEnabled(x=False, y=False)
 
-        self.crosshairColor = (196,220,255)
+        self.crosshair_color = (196,220,255)
 
         self.layout = QtGui.QGridLayout()
-        self.layout.addWidget(self.crosshairPlot)
+        self.layout.addWidget(self.crosshair_plot)
        
-        # Create the crosshair
-        self.crosshairPlot.plotItem.setAutoVisible(y=True)
-        self.vLine = pg.InfiniteLine(angle=90)
-        self.hLine = pg.InfiniteLine(angle=0, movable=False)
-        self.vLine.setPen(self.crosshairColor)
-        self.hLine.setPen(self.crosshairColor)
-        self.crosshairPlot.setAutoVisible(y=True)
-        self.crosshairPlot.addItem(self.vLine, ignoreBounds=True)
-        self.crosshairPlot.addItem(self.hLine, ignoreBounds=True)
+        # Create the crosshair 
+        self.crosshair_plot.plotItem.setAutoVisible(y=True)
+        self.vertical_line = pg.InfiniteLine(angle=90)
+        self.horizontal_line = pg.InfiniteLine(angle=0, movable=False)
+        self.vertical_line.setPen(self.crosshair_color)
+        self.horizontal_line.setPen(self.crosshair_color)
+        self.crosshair_plot.setAutoVisible(y=True)
+        self.crosshair_plot.addItem(self.vertical_line, ignoreBounds=True)
+        self.crosshair_plot.addItem(self.horizontal_line, ignoreBounds=True)
         
         # Update crosshair
-        self.crosshairUpdate = pg.SignalProxy(self.crosshairPlot.scene().sigMouseMoved, rateLimit=1500, slot=self.updateCrosshair)
+        self.crosshair_update = pg.SignalProxy(self.crosshair_plot.scene().sigMouseMoved, rateLimit=1500, slot=self.update_crosshair)
 
-    def updateCrosshair(self, event):
+    def update_crosshair(self, event):
+        """Obtains mouse coordinates and moves crosshair"""
+
         self.coordinates = event[0]  
         self.x = self.coordinates.x()
         self.y = self.coordinates.y()
-        if self.crosshairPlot.sceneBoundingRect().contains(self.coordinates):
-            self.mousePoint = self.crosshairPlot.plotItem.vb.mapSceneToView(self.coordinates)
-            self.vLine.setPos(self.mousePoint.x())
-            self.hLine.setPos(self.mousePoint.y())
+        if self.crosshair_plot.sceneBoundingRect().contains(self.coordinates):
+            self.mouse_point = self.crosshair_plot.plotItem.vb.mapSceneToView(self.coordinates)
+            self.vertical_line.setPos(self.mouse_point.x())
+            self.horizontal_line.setPos(self.mouse_point.y())
 
-    def getCrosshairLayout(self):
+    def get_crosshair_layout(self):
         return self.layout
 
-    def getX(self):
+    def get_x(self):
         return self.x
 
-    def getY(self):
+    def get_y(self):
         return self.y
     
-class Overlay(QtGui.QWidget):
+class OverlayWidget(QtGui.QWidget):
+    """Creates a overlay platform to place widgets on
+    
+    Overlay is placed on the video frame which allows the crosshair to 
+    freely move
+    """
+
     def __init__(self, parent):
-        super(Overlay, self).__init__(parent)
+        super(OverlayWidget, self).__init__(parent)
 
         # Make any widgets in the container have a transparent background
         self.palette = QtGui.QPalette(self.palette())
         self.palette.setColor(self.palette.Background, QtCore.Qt.transparent)
         self.setPalette(self.palette)
-        self.dotOffset = 9
+        self.CROSSHAIR_OFFSET = 9
        
         self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
         self.crosshair = CrosshairWidget()
         self.painter = QtGui.QPainter()
-        self.updateDotFlag = False
-        self.pen = QtGui.QPen(QtCore.Qt.green, 1.5)
+        self.update_dot_flag = False
+        self.crosshair_pen = QtGui.QPen(QtCore.Qt.green, 1.5)
         
         # Set initial dot outside paint window
         # Top left is (0,0)
-        self.dotX = -100
-        self.dotY = -100
+        self.DOT_X = -100
+        self.DOT_Y = -100
 
-        self.crosshairLength = 7
-        self.crosshairDifference = 5
+        # Crosshair distance from dot and length of each side
+        self.CROSSHAIR_LENGTH = 7
+        self.CROSSHAIR_DIFFERENCE = 5
 
         self.layout = QtGui.QGridLayout()
-        self.layout.addLayout(self.crosshair.getCrosshairLayout(),1,0)
+        self.layout.addLayout(self.crosshair.get_crosshair_layout(),1,0)
         self.setLayout(self.layout)
     
-    # Make overlay transparent but keep widgets
     def paintEvent(self, event):
+        """Screen is automatically refreshed on mouse movement or frame change"""
+    
+        # Make overlay transparent but keep widgets
         self.painter.begin(self)
         self.painter.setRenderHint(QtGui.QPainter.Antialiasing)
         # Transparency settings for overlay (r,g,b,a)
         self.painter.fillRect(event.rect(), QtGui.QBrush(QtGui.QColor(0, 0, 0, 0)))
-        if self.updateDotFlag:
-            self.updateDot()
-            self.setUpdateDotFlag(False)
-        self.painter.setPen(self.pen)
-        self.drawCrosshair()
+        if self.update_dot_flag:
+            self.update_dot()
+            self.set_update_dot_flag(False)
+        self.painter.setPen(self.crosshair_pen)
+        self.draw_crosshair()
         self.painter.end()
 
-    def drawCrosshair(self):
+    def draw_crosshair(self):
+        """Paint the crosshair on the screen"""
+
         # Middle point
-        self.painter.drawPoint(self.dotX, self.dotY)
+        self.painter.drawPoint(self.DOT_X, self.DOT_Y)
         # Top
-        self.painter.drawLine(self.dotX, self.dotY - self.crosshairDifference, self.dotX, self.dotY - self.crosshairDifference - self.crosshairLength)
+        self.painter.drawLine(self.DOT_X, self.DOT_Y - self.CROSSHAIR_DIFFERENCE, self.DOT_X, self.DOT_Y - self.CROSSHAIR_DIFFERENCE - self.CROSSHAIR_LENGTH)
         # Right
-        self.painter.drawLine(self.dotX + self.crosshairDifference, self.dotY, self.dotX + self.crosshairDifference + self.crosshairLength, self.dotY)
+        self.painter.drawLine(self.DOT_X + self.CROSSHAIR_DIFFERENCE, self.DOT_Y, self.DOT_X + self.CROSSHAIR_DIFFERENCE + self.CROSSHAIR_LENGTH, self.DOT_Y)
         # Bottom
-        self.painter.drawLine(self.dotX, self.dotY + self.crosshairDifference, self.dotX, self.dotY + self.crosshairDifference + self.crosshairLength)
+        self.painter.drawLine(self.DOT_X, self.DOT_Y + self.CROSSHAIR_DIFFERENCE, self.DOT_X, self.DOT_Y + self.CROSSHAIR_DIFFERENCE + self.CROSSHAIR_LENGTH)
         # Left
-        self.painter.drawLine(self.dotX - self.crosshairDifference, self.dotY, self.dotX - self.crosshairDifference - self.crosshairLength, self.dotY)
+        self.painter.drawLine(self.DOT_X - self.CROSSHAIR_DIFFERENCE, self.DOT_Y, self.DOT_X - self.CROSSHAIR_DIFFERENCE - self.CROSSHAIR_LENGTH, self.DOT_Y)
 
-    def updateDot(self):
-        self.dotX = self.getX() + self.dotOffset
-        self.dotY = self.getY() + self.dotOffset
+    def update_dot(self):
+        self.DOT_X = self.get_x() + self.CROSSHAIR_OFFSET
+        self.DOT_Y = self.get_y() + self.CROSSHAIR_OFFSET
 
-    def setUpdateDotFlag(self, boolean):
-        self.updateDotFlag = boolean
+    def set_update_dot_flag(self, boolean):
+        self.update_dot_flag = boolean
 
-    def getX(self):
-        return self.crosshair.getX()
+    def get_x(self):
+        return self.crosshair.get_x()
 
-    def getY(self):
-        return self.crosshair.getY()
+    def get_y(self):
+        return self.crosshair.get_y()
 

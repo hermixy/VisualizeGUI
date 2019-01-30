@@ -1,9 +1,3 @@
-'''
-Run servers: pubsub_server2.py for parameter/position changes (OPTIONAL)
-             reqrep_server1.py for ZMQ Plot (OPTIONAL)
-             reqrep_server2.py for change ZMQ Plot ability (OPTIONAL)
-             server1.py for rotational controller (REQUIRED) (switch for pubsub_server1.py)
-'''
 from PyQt4 import QtCore, QtGui 
 from PyQt4.QtGui import QSizePolicy
 from widgets import ZMQPlotWidget 
@@ -17,258 +11,301 @@ from threading import Thread
 import time
 import configparser
 
+"""Rotational Controller GUI
+
+Controls rotational controller with precise movement velocity, 
+acceleration, and positional accuracy. Ensure rotational controller is 
+connected. rotational.ini is the configuraiton settings file.
+
+Run servers: pubsub_server2.py for parameter/position changes (OPTIONAL)
+             reqrep_server1.py for ZMQ Plot (OPTIONAL)
+             reqrep_server2.py for change ZMQ Plot ability (OPTIONAL)
+             server1.py for rotational controller (REQUIRED) (switch for pubsub_server1.py)
+"""
+
 # =====================================================================
 # Configuration file settings 
 # =====================================================================
 
-# Read in plot settings from motor.ini file, creates file if doesn't exist
-def readSettings():
-    global position_address, position_topic, position_frequency, parameter_address
-    global ZMQ_address, ZMQ_topic, ZMQ_frequency
-    global saveSettingsFlag
+def read_settings():
+    """Read in plot settings from rotational.ini file, creates file if doesn't exist"""
+
+    global position_address
+    global position_topic 
+    global position_frequency 
+    global parameter_address 
+    global ZMQ_address 
+    global ZMQ_topic 
+    global ZMQ_frequency 
+    global save_settings
     
-    saveSettingsFlag = False
+    save_settings = False
+
     # Read in each section and parse information
     try:
         config = configparser.ConfigParser()
-        config.read('motor.ini')
-        position_address = str(config['ROTATIONAL_CONTROLLER']['positionAddress'])
-        position_topic = str(config['ROTATIONAL_CONTROLLER']['positionTopic'])
-        parameter_address = str(config['ROTATIONAL_CONTROLLER']['parameterAddress'])
+        config.read('rotational.ini')
+        position_address = str(config['ROTATIONAL_CONTROLLER']['position_address'])
+        position_topic = str(config['ROTATIONAL_CONTROLLER']['position_topic'])
+        parameter_address = str(config['ROTATIONAL_CONTROLLER']['parameter_address'])
         try:
-            position_frequency = float(config['ROTATIONAL_CONTROLLER']['positionFrequency'])
+            position_frequency = float(config['ROTATIONAL_CONTROLLER']['position_frequency'])
             if position_frequency <= 0:
                 QtGui.QMessageBox.about(QtGui.QWidget(), 'Error',
-                        'positionFrequency value cannot be zero or negative. Check motor.ini')
+                        'position_frequency value cannot be zero or negative. Check rotational.ini')
                 exit(1)
         # Input was not a valid number 
         except ValueError:
-            QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'Invalid positionFrequency value. Check motor.ini')
+            QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'Invalid position_frequency value. Check rotational.ini')
             exit(1)
 
-        ZMQ_address = str(config['ZMQ_PLOT']['ZMQAddress']) 
-        ZMQ_topic = str(config['ZMQ_PLOT']['ZMQTopic'])
+        ZMQ_address = str(config['ZMQ_PLOT']['ZMQ_address']) 
+        ZMQ_topic = str(config['ZMQ_PLOT']['ZMQ_topic'])
         try:
-            ZMQ_frequency = float(config['ZMQ_PLOT']['ZMQFrequency'])
+            ZMQ_frequency = float(config['ZMQ_PLOT']['ZMQ_frequency'])
             if ZMQ_frequency <= 0:
-                QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'ZMQFrequency value cannot be zero or negative. Check motor.ini')
+                QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'ZMQ_frequency value cannot be zero or negative. Check rotational.ini')
                 exit(1)
         # Input was not a valid number 
         except ValueError:
-            QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'Invalid ZMQFrequency value. Check motor.ini')
+            QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'Invalid ZMQ_frequency value. Check rotational.ini')
             exit(1)
     
-    # Create empty default motor.ini file if doesn't exist
+    # Create empty default rotational.ini file if doesn't exist
     except KeyError:
-        createEmptySettingsFile()
-        QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'motor.ini created, add settings into file')
+        create_empty_settings_file()
+        QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'rotational.ini created, add settings into file')
         exit(1)
 
-# Write port settings into motor.ini file with any new connection
-def writeSettings(key, table):
-    global saveSettingsFlag
+def write_settings(key, table):
+    """Write port settings into rotational.ini file with any new connection"""
+
+    global save_settings
     
-    if saveSettingsFlag:
+    if save_settings:
         parser = configparser.SafeConfigParser()
-        parser.read('motor.ini')
+        parser.read('rotational.ini')
         for k in table:
             parser.set(key, k, table[k])
-        with open('motor.ini', 'w+') as configfile:
-            parser.write(configfile)
+        with open('rotational.ini', 'w+') as config_file:
+            parser.write(config_file)
 
-# Create empty motor.ini file if doesn't exist
-def createEmptySettingsFile():
+def create_empty_settings_file():
+    """Create empty rotational.ini file if doesn't exist"""
+
     config = configparser.ConfigParser()
-    config['ROTATIONAL_CONTROLLER'] = {'positionAddress': '',
-                                       'positionTopic': '',
-                                       'positionFrequency': '',
-                                       'parameterAddress': '' }
-    config['ZMQ_PLOT'] = {'ZMQAddress': '',
-                          'ZMQTopic': '',
-                          'ZMQFrequency': '' }
-    with open('motor.ini', 'w') as configfile:
-        config.write(configfile)
+    config['ROTATIONAL_CONTROLLER'] = {'position_address': '',
+                                       'position_topic': '',
+                                       'position_frequency': '',
+                                       'parameter_address': '' }
+    config['ZMQ_PLOT'] = {'ZMQ_address': '',
+                          'ZMQ_topic': '',
+                          'ZMQ_frequency': '' }
+    with open('rotational.ini', 'w') as config_file:
+        config.write(config_file)
 
-# Toggle save or discard saving port settings to motor.ini
-def writePortSettingsToggle():
-    global saveSettingsFlag
-    global statusBar
+def write_port_settings_toggle():
+    """Toggle save or discard saving port settings to rotational.ini"""
 
-    if saveSettingsFlag:
-        saveSettingsFlag = False
-        statusBar.showMessage('Write to motor.ini disabled', 4000)
+    global save_settings
+    global status_bar
+
+    if save_settings:
+        save_settings = False
+        status_bar.showMessage('Write to rotational.ini disabled', 4000)
     else: 
-        saveSettingsFlag = True
-        statusBar.showMessage('Write to motor.ini enabled', 4000)
+        save_settings = True
+        status_bar.showMessage('Write to rotational.ini enabled', 4000)
 
 # =====================================================================
 # Port connection popup widget  
 # =====================================================================
 
-# Widget to control position, parameters, and plot connection settings (TCP address, port, topic)
 class PortSettingPopUpWidget(QtGui.QWidget):
-    def __init__(self, windowTitle, parent=None):
+    """Widget to control position, parameters, and plot connection settings (TCP address, port, topic)
+    
+    Includes 3 tabs: position, parameter, and plot
+
+    position: Reads current rotational controller value
+    parameter: Sets velocity, position, and acceleration limits and allows communication to GUI
+    plot: ZMQ plot readings
+    """
+
+    def __init__(self, window_title, parent=None):
         super(PortSettingPopUpWidget, self).__init__(parent)
 
-        self.popUpWidth = 195
-        self.popUpHeight = 150
-        self.setFixedSize(self.popUpWidth, self.popUpHeight)
+        self.POPUP_WIDTH = 195
+        self.POPUP_HEIGHT = 150
+        self.setFixedSize(self.POPUP_WIDTH, self.POPUP_HEIGHT)
 
-        self.styleSettingValid = "border-radius: 6px; padding:5px; background-color: #5fba7d"
-        self.styleSettingInvalid = "border-radius: 6px; padding:5px; background-color: #f78380"
+        self.style_setting_valid = "border-radius: 6px; padding:5px; background-color: #5fba7d"
+        self.style_setting_invalid  = "border-radius: 6px; padding:5px; background-color: #f78380"
 
-        self.setWindowTitle(windowTitle)
+        self.setWindowTitle(window_title)
         self.tabs = QtGui.QTabWidget(self)
-        self.positionTab = QtGui.QWidget()
-        self.parameterTab = QtGui.QWidget()
-        self.plotTab = QtGui.QWidget()
+        self.position_tab = QtGui.QWidget()
+        self.parameter_tab = QtGui.QWidget()
+        self.plot_tab = QtGui.QWidget()
         
         # Status bar message data and data wait time in seconds
         self.status = ()
-        self.dataTimeout = 1
+        self.DATA_TIMEOUT = 1
 
         # Position
-        self.positionLayout = QtGui.QFormLayout()
+        self.position_layout = QtGui.QFormLayout()
         self.position_TCPAddress = QtGui.QLineEdit()
         self.position_TCPAddress.setMaxLength(15)
         self.position_TCPPort = QtGui.QLineEdit()
         self.position_TCPPort.setValidator(QtGui.QIntValidator())
         self.position_TCPTopic = QtGui.QLineEdit()
         self.position_TCPTopic.setValidator(QtGui.QIntValidator())
-        self.positionButtonLayout = QtGui.QHBoxLayout()
-        self.positionConnectButton = QtGui.QPushButton('Connect')
-        self.positionConnectButton.setStyleSheet('background-color: #3CB371')
-        self.positionConnectButton.clicked.connect(self.position_saveButton)
-        self.positionCancelButton = QtGui.QPushButton('Cancel')
-        self.positionCancelButton.clicked.connect(self.position_cancelButton)
-        self.positionButtonLayout.addWidget(self.positionConnectButton)
-        self.positionButtonLayout.addWidget(self.positionCancelButton)
+        self.position_button_layout = QtGui.QHBoxLayout()
+        self.position_connect_button = QtGui.QPushButton('Connect')
+        self.position_connect_button.setStyleSheet('background-color: #3CB371')
+        self.position_connect_button.clicked.connect(self.position_save_button)
+        self.position_stop_button = QtGui.QPushButton('Cancel')
+        self.position_stop_button.clicked.connect(self.position_cancel_button)
+        self.position_button_layout.addWidget(self.position_connect_button)
+        self.position_button_layout.addWidget(self.position_stop_button)
 
-        self.positionLayout.addRow("TCP Address", self.position_TCPAddress)
-        self.positionLayout.addRow("Port", self.position_TCPPort)
-        self.positionLayout.addRow("Topic", self.position_TCPTopic)
-        self.positionLayout.addRow(self.positionButtonLayout)
-        self.positionTab.setLayout(self.positionLayout)
+        self.position_layout.addRow("TCP Address", self.position_TCPAddress)
+        self.position_layout.addRow("Port", self.position_TCPPort)
+        self.position_layout.addRow("Topic", self.position_TCPTopic)
+        self.position_layout.addRow(self.position_button_layout)
+        self.position_tab.setLayout(self.position_layout)
 
         # Parameter
-        self.parameterLayout = QtGui.QFormLayout() 
+        self.parameter_layout = QtGui.QFormLayout() 
         self.parameter_TCPAddress = QtGui.QLineEdit()
         self.parameter_TCPAddress.setMaxLength(15)
         self.parameter_TCPPort = QtGui.QLineEdit()
         self.parameter_TCPPort.setValidator(QtGui.QIntValidator())
-        self.parameterButtonLayout = QtGui.QHBoxLayout()
-        self.parameterConnectButton = QtGui.QPushButton('Connect')
-        self.parameterConnectButton.setStyleSheet('background-color: #3CB371')
-        self.parameterConnectButton.clicked.connect(self.parameter_saveButton)
-        self.parameterCancelButton = QtGui.QPushButton('Cancel')
-        self.parameterCancelButton.clicked.connect(self.parameter_cancelButton)
-        self.parameterButtonLayout.addWidget(self.parameterConnectButton)
-        self.parameterButtonLayout.addWidget(self.parameterCancelButton)
+        self.parameter_button_layout = QtGui.QHBoxLayout()
+        self.parameter_connect_button = QtGui.QPushButton('Connect')
+        self.parameter_connect_button.setStyleSheet('background-color: #3CB371')
+        self.parameter_connect_button.clicked.connect(self.parameter_save_button)
+        self.parameter_stop_button = QtGui.QPushButton('Cancel')
+        self.parameter_stop_button.clicked.connect(self.parameter_cancel_button)
+        self.parameter_button_layout.addWidget(self.parameter_connect_button)
+        self.parameter_button_layout.addWidget(self.parameter_stop_button)
 
-        self.parameterLayout.addRow("TCP Address", self.parameter_TCPAddress)
-        self.parameterLayout.addRow("Port", self.parameter_TCPPort)
-        self.parameterLayout.addRow(self.parameterButtonLayout)
-        self.parameterTab.setLayout(self.parameterLayout)
+        self.parameter_layout.addRow("TCP Address", self.parameter_TCPAddress)
+        self.parameter_layout.addRow("Port", self.parameter_TCPPort)
+        self.parameter_layout.addRow(self.parameter_button_layout)
+        self.parameter_tab.setLayout(self.parameter_layout)
 
         # Plot
-        self.plotLayout = QtGui.QFormLayout()
+        self.plot_layout = QtGui.QFormLayout()
         self.plot_TCPAddress = QtGui.QLineEdit()
         self.plot_TCPAddress.setMaxLength(15)
         self.plot_TCPPort = QtGui.QLineEdit()
         self.plot_TCPPort.setValidator(QtGui.QIntValidator())
         self.plot_TCPTopic = QtGui.QLineEdit()
         self.plot_TCPTopic.setValidator(QtGui.QIntValidator())
-        self.plotButtonLayout = QtGui.QHBoxLayout()
-        self.plotConnectButton = QtGui.QPushButton('Connect')
-        self.plotConnectButton.setStyleSheet('background-color: #3CB371')
-        self.plotConnectButton.clicked.connect(self.plot_saveButton)
-        self.plotCancelButton = QtGui.QPushButton('Cancel')
-        self.plotCancelButton.clicked.connect(self.plot_cancelButton)
-        self.plotButtonLayout.addWidget(self.plotConnectButton)
-        self.plotButtonLayout.addWidget(self.plotCancelButton)
+        self.plot_button_layout = QtGui.QHBoxLayout()
+        self.plot_connect_button = QtGui.QPushButton('Connect')
+        self.plot_connect_button.setStyleSheet('background-color: #3CB371')
+        self.plot_connect_button.clicked.connect(self.plot_save_button)
+        self.plot_stop_button = QtGui.QPushButton('Cancel')
+        self.plot_stop_button.clicked.connect(self.plot_cancel_button)
+        self.plot_button_layout.addWidget(self.plot_connect_button)
+        self.plot_button_layout.addWidget(self.plot_stop_button)
+
+        self.plot_layout.addRow("TCP Address", self.plot_TCPAddress)
+        self.plot_layout.addRow("Port", self.plot_TCPPort)
+        self.plot_layout.addRow("Topic", self.plot_TCPTopic)
+        self.plot_layout.addRow(self.plot_button_layout)
+        self.plot_tab.setLayout(self.plot_layout)
 
         # Popup Layout
-        self.plotLayout.addRow("TCP Address", self.plot_TCPAddress)
-        self.plotLayout.addRow("Port", self.plot_TCPPort)
-        self.plotLayout.addRow("Topic", self.plot_TCPTopic)
-        self.plotLayout.addRow(self.plotButtonLayout)
-        self.plotTab.setLayout(self.plotLayout)
-
-        self.tabs.addTab(self.positionTab, 'Position')
-        self.tabs.addTab(self.parameterTab, 'Parameters')
-        self.tabs.addTab(self.plotTab, 'Plot')
+        self.tabs.addTab(self.position_tab, 'Position')
+        self.tabs.addTab(self.parameter_tab, 'Parameters')
+        self.tabs.addTab(self.plot_tab, 'Plot')
          
         self.setWindowModality(QtCore.Qt.ApplicationModal)
         self.show()
     
-    # Returns status of successful, same, or failed connection attempt
-    def getStatus(self):
+    def get_status(self):
+        """Returns status of successful, unchanged, or failed connection attempt"""
+
         return self.status
 
-    def position_saveButton(self):
+    def position_save_button(self):
+        """Parses position input and sets port if validated"""
+
         address = str(self.position_TCPAddress.text())
         port = str(self.position_TCPPort.text())
         topic = str(self.position_TCPTopic.text())
-        Thread(target=self.positionCheckValidPort, args=(address,port,topic)).start()
+        Thread(target=self.position_check_valid_port, args=(address,port,topic)).start()
         self.close()
         
-    def position_cancelButton(self):
+    def position_cancel_button(self):
+        """Cancel position port change operation"""
+
         self.status = ()
         self.close()
 
-    def positionCheckValidPort(self, address, port, topic):
+    def position_check_valid_port(self, address, port, topic):
+        """Opens a ZMQ socket connection and checks if valid port"""
+
         global position_address
-        global statusBar
-        global motorPlot
-        global position_context, position_socket, position_topic
-        global positionStatus
+        global status_bar
+        global rotational_controller_plot
+        global position_context
+        global position_socket 
+        global position_topic
+        global position_status
 
         if address and port and topic:
             new_position_address = "tcp://" + address + ":" + port
-            if new_position_address != position_address or motorPlot.getPositionTopic() != topic:
+            if new_position_address != position_address or rotational_controller_plot.get_position_topic() != topic:
                 context = zmq.Context()
                 socket = context.socket(zmq.SUB)
                 socket.connect(new_position_address)
                 socket.setsockopt(zmq.SUBSCRIBE, topic)
                 # Check for valid data within time interval in seconds (s)
-                time_end = time.time() + self.dataTimeout
+                time_end = time.time() + self.DATA_TIMEOUT
                 while time.time() < time_end:
                     try:
                         topic, data = socket.recv(zmq.NOBLOCK).split()
                         position_address = new_position_address
-                        position_context, position_socket, position_topic = motorPlot.updatePositionPlotAddress(new_position_address, topic)
-                        settings = {'positionAddress': new_position_address, 'positionTopic': position_topic}
-                        writeSettings('ROTATIONAL_CONTROLLER', settings) 
+                        position_context, position_socket, position_topic = rotational_controller_plot.update_position_plot_address(new_position_address, topic)
+                        settings = {'position_address': new_position_address, 'position_topic': position_topic}
+                        write_settings('ROTATIONAL_CONTROLLER', settings) 
                         self.status = ('success', position_address)
-                        motorPlot.setPositionVerified(True)
-                        positionStatus.setStyleSheet(self.styleSettingValid)
+                        rotational_controller_plot.set_position_verified(True)
+                        position_status.setStyleSheet(self.style_setting_valid)
                         return
                     except zmq.ZMQError, e:
                         # No data arrived
                         if e.errno == zmq.EAGAIN:
                             pass
-                        else:
-                            print("real error")
                 self.status = ('fail', position_address)
             else:
                 self.status = ('same', position_address)
         else:
             self.status = ('fail', position_address)
     
-    def parameter_saveButton(self):
+    def parameter_save_button(self):
+        """Parses parameter input and sets port if validated"""
+
         address = str(self.parameter_TCPAddress.text())
         port = str(self.parameter_TCPPort.text())
-        Thread(target=self.parameterCheckValidPort, args=(address,port)).start()
+        Thread(target=self.parameter_check_valid_port, args=(address,port)).start()
         self.close()
         
-    def parameter_cancelButton(self):
+    def parameter_cancel_button(self):
+        """Cancel parameter port change operation"""
+
         self.status = ()
         self.close()
 
-    def parameterCheckValidPort(self, address, port):
+    def parameter_check_valid_port(self, address, port):
+        """Opens a ZMQ socket connection and checks if valid port"""
+
         global parameter_address
-        global motorPlot
-        global parameterStatus
+        global rotational_controller_plot
+        global parameter_status
         
         if address and port:
             new_parameter_address = "tcp://" + address + ":" + port
@@ -280,167 +317,191 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                 socket.connect(new_parameter_address)
                 socket.send("info?")
                 # Check for valid data within time interval in seconds (s)
-                time_end = time.time() + self.dataTimeout
+                time_end = time.time() + self.DATA_TIMEOUT
                 while time.time() < time_end:
                     try:
                         result = socket.recv(zmq.NOBLOCK).split(',')
                         parameter_address = new_parameter_address
-                        motorPlot.setParameterVerified(True)
-                        self.changeParameterPort(new_parameter_address)
-                        settings = {'parameterAddress': new_parameter_address}
-                        writeSettings('ROTATIONAL_CONTROLLER', settings) 
+                        rotational_controller_plot.set_parameter_verified(True)
+                        self.change_parameter_port(new_parameter_address)
+                        settings = {'parameter_address': new_parameter_address}
+                        write_settings('ROTATIONAL_CONTROLLER', settings) 
                         self.status = ('success', parameter_address)
-                        parameterStatus.setStyleSheet(self.styleSettingValid)
+                        parameter_status.setStyleSheet(self.style_setting_valid)
                         return
                     except zmq.ZMQError, e:
                         # No data arrived
                         if e.errno == zmq.EAGAIN:
                             pass
-                        else:
-                            print("real error")
                 self.status = ('fail', parameter_address)
             else:
                 self.status = ('same', parameter_address)
         else:
             self.status = ('fail', parameter_address)
 
-    def changeParameterPort(self, address):
-        global parameter_context, parameter_socket
-        global motorPlot
-        parameter_context, parameter_socket = motorPlot.updateParameterPlotAddress(address)
-        parametersUpdate()
+    def change_parameter_port(self, address):
+        """Sets parameter port with new settings"""
 
-    def plot_saveButton(self):
+        global parameter_context
+        global parameter_socket
+        global rotational_controller_plot
+        parameter_context, parameter_socket = rotational_controller_plot.update_parameter_plot_address(address)
+        parameter_update()
+
+    def plot_save_button(self):
+        """Parses plot input and sets port if validated"""
+
         address = str(self.plot_TCPAddress.text())
         port = str(self.plot_TCPPort.text())
         topic = str(self.plot_TCPTopic.text())
-        Thread(target=self.plotCheckValidPort, args=(address,port,topic)).start()
+        Thread(target=self.plot_check_valid_port, args=(address,port,topic)).start()
         self.close()
         
-    def plot_cancelButton(self):
+    def plot_cancel_button(self):
+        """Cancel plot port change operation"""
+
         self.status = ()
         self.close()
 
-    def plotCheckValidPort(self, address, port, topic):
+    def plot_check_valid_port(self, address, port, topic):
+        """Opens a ZMQ socket connection and checks if valid port"""
+
         global plot
-        global plotStatus
+        global plot_status
         
         if address and port and topic:
             new_plot_address = "tcp://" + address + ":" + port
-            if plot.getZMQPlotAddress() != new_plot_address or plot.getZMQTopic() != topic:
+            if plot.get_ZMQ_plot_address() != new_plot_address or plot.get_ZMQ_topic() != topic:
                 context = zmq.Context()
                 socket = context.socket(zmq.SUB)
                 socket.connect(new_plot_address)
                 socket.setsockopt(zmq.SUBSCRIBE, topic)
                 # Check for valid data within time interval in seconds (s)
-                time_end = time.time() + self.dataTimeout
+                time_end = time.time() + self.DATA_TIMEOUT
                 while time.time() < time_end:
                     try:
                         topic, data = socket.recv(zmq.NOBLOCK).split()
-                        plot.updateZMQPlotAddress(new_plot_address, topic)
-                        if not plot.getVerified():
-                            plot.setVerified(True)
-                        settings = {'ZMQAddress': new_plot_address, 'ZMQTopic': topic}
-                        writeSettings('ZMQ_PLOT', settings) 
+                        plot.update_ZMQ_plot_address(new_plot_address, topic)
+                        if not plot.get_verified():
+                            plot.set_verified(True)
+                        settings = {'ZMQ_address': new_plot_address, 'ZMQ_topic': topic}
+                        write_settings('ZMQ_PLOT', settings) 
                         self.status = ('success', new_plot_address)
-                        plotStatus.setStyleSheet(self.styleSettingValid)
+                        plot_status.setStyleSheet(self.style_setting_valid)
                         return
                     except zmq.ZMQError, e:
                         # No data arrived
                         if e.errno == zmq.EAGAIN:
                             pass
-                        else:
-                            print("real error")
                 self.status = ('fail', new_plot_address)
             else:
                 self.status = ('same', new_plot_address)
         else:
-            self.status = ('fail', plot.getZMQPlotAddress())
-
+            self.status = ('fail', plot.get_ZMQ_plot_address())
 
 # =====================================================================
-# Thread to display connection status 
+# Status bar message timer widget
 # =====================================================================
 
-class displayStatusBarMessage(QtCore.QThread):
-    global statusBar
-    global portAddress
-    global statusThreads
+class DisplayStatusBarMessageThread(QtCore.QThread):
+    """Thread to display status bar connection status"""
+
+    global status_bar
+    global port_address
     global app
 
     def __init__(self, message='', parent=None):
-        super(displayStatusBarMessage, self).__init__(parent)
+        super(DisplayStatusBarMessageThread, self).__init__(parent)
         
-        # Display statusbar message length in ms
-        self.messageDuration = 8000
+        # Display status_bar message length in ms
+        self.MESSAGE_DURATION = 8000
+
+        # Duration for popup to open on GUI in s
+        self.POPUP_OPEN_DELAY = .05
+
+        # Duration for popup to verify port settings in s
+        self.TIME_TO_VERIFY_SETTINGS = 1.25
 
         # Get status message of popup connect
-        self.signalThread = Thread(target=self.getSignal, args=())
-        self.signalThread.daemon = True
-        self.signalThread.start()
+        self.signal_thread = Thread(target=self.get_signal, args=())
+        self.signal_thread.daemon = True
+        self.signal_thread.start()
 
         # Add QThread object to array to detect if got signal
-        self.statusThread = [] 
-        self.statusThread.append(self.signalThread)
+        self.status_threads = [] 
+        self.status_threads.append(self.signal_thread)
         
         self.setTerminationEnabled(True)
         self.daemon = True
         self.start()
 
         # Spin until get signal
-        while self.statusThread:
+        while self.status_threads:
             app.processEvents()
         
-        # Display statusbar message
-        self.showMessage()
+        # Display status_bar message
+        self.show_message()
         
         self.terminate()
         self.wait()
     
-    def getSignal(self):
-        self.status = portAddress.getStatus()
-        self.visible = self.isWidgetVisible()
+    def get_signal(self):
+        """Obtain port connection status from popup
+
+        Since QTimers must be run in the main GUI thread, 
+        the signal must be received from the popup and transfered
+        to the main thread. This function runs simultaneously 
+        to the popup thread in order to bring the signal 
+        out of the popup.
+        """
+
+        self.status = port_address.get_status()
+        self.visible = self.is_widget_visible()
         while True:
             if self.visible:
-                self.visible = self.isWidgetVisible()
+                self.visible = self.is_widget_visible()
             else:
-                self.status = portAddress.getStatus()
+                self.status = port_address.get_status()
                 break
-            time.sleep(.05)
+            time.sleep(self.POPUP_OPEN_DELAY)
         
         # Spin for extra time for the situation where it checks invalid input
         # Additional time comes from time used to verify input settings function
-        time_end = time.time() + 1.25
+        time_end = time.time() + self.TIME_TO_VERIFY_SETTINGS
         while time.time() < time_end:
             app.processEvents()
-        self.status = portAddress.getStatus()
+        self.status = port_address.get_status()
         
         # Pop to signal parent thread that signal was received
-        self.statusThread.pop()
+        self.status_threads.pop()
     
-    def isWidgetVisible(self):
-        return True if not portAddress.visibleRegion().isEmpty() else False
+    def is_widget_visible(self):
+        """Determines if popup widget is visbile"""
 
-    def showMessage(self):
+        return True if not port_address.visibleRegion().isEmpty() else False
+
+    def show_message(self):
+        """Display connection status on statusbar"""
+
         if self.status:
             if self.status[0] == 'success':
-                statusBar.showMessage('Successfully connected to ' + str(self.status[1]), self.messageDuration)
+                status_bar.showMessage('Successfully connected to ' + str(self.status[1]), self.MESSAGE_DURATION)
             elif self.status[0] == 'same':
-                statusBar.showMessage('Already connected to ' + str(self.status[1]), self.messageDuration)
+                status_bar.showMessage('Already connected to ' + str(self.status[1]), self.MESSAGE_DURATION)
             elif self.status[0] == 'fail':
-                statusBar.showMessage('Invalid IP/Port settings!', self.messageDuration)
+                status_bar.showMessage('Invalid IP/Port settings!', self.MESSAGE_DURATION)
 
 # =====================================================================
 # Button action functions
 # =====================================================================
 
-# Move rotational controller with selected values
-def moveButton():
-    global statusBar
-    def moveButtonThread():
-        global motorPlot
+def move_button():
+    """Move rotational controller with selected values"""
+
+    def move_button_thread():
+        global rotational_controller_plot
         global parameter_socket
-        parameter_socket = motorPlot.getParameterSocket()
+        parameter_socket = rotational_controller_plot.get_parameter_socket()
         if parameter_socket:
             try:
                 v = str(velocity.text())
@@ -450,34 +511,34 @@ def moveButton():
                     command = "move {} {} {}".format(v,a,p)
                     parameter_socket.send(command)
                     result = parameter_socket.recv()
-                    #print("Move response is " + result)
                 else:
                     pass
+            # No data arrived
             except zmq.ZMQError:
-                # No data arrived
                 pass
-    Thread(target=moveButtonThread, args=()).start()
+    Thread(target=move_button_thread, args=()).start()
 
-# Resets rotational controller to default
-def homeButton():
-    def homeButtonThread():
+def home_button():
+    """Resets rotational controller to default position"""
+
+    def home_button_thread():
         global parameter_socket
-        global motorPlot
-        parameter_socket = motorPlot.getParameterSocket()
+        global rotational_controller_plot
+        parameter_socket = rotational_controller_plot.get_parameter_socket()
         if parameter_socket:
             try:
                 parameter_socket.send("home")
                 result = parameter_socket.recv()
-                #print("Home response is " + result)
+            # No data arrived
             except zmq.ZMQError:
-                # No data arrived
                 pass
-    Thread(target=homeButtonThread, args=()).start()
+    Thread(target=home_button_thread, args=()).start()
 
-# Save current field values into a saved preset
-def addPresetSettingsButton():
-    def addPresetSettingsButtonThread():
-        name = str(presetName.text())
+def add_preset_settings_button():
+    """Save current text fields into a preset"""
+
+    def add_preset_settings_button_thread():
+        name = str(preset_name.text())
         v = str(velocity.text())
         a = str(acceleration.text())
         p = str(position.text())
@@ -485,106 +546,137 @@ def addPresetSettingsButton():
             return
         if not p or not v or not a:
             return
-        if name not in presetTable:
+        if name not in preset_table:
             presets.addItem(name)
-        presetTable[name] = {
+        preset_table[name] = {
                 "position": p,
                 "velocity": v,
                 "acceleration": a 
                 }
         index = presets.findText(name)
         presets.setCurrentIndex(index)
-        presetName.clear()
-    Thread(target=addPresetSettingsButtonThread, args=()).start()
+        preset_name.clear()
+    Thread(target=add_preset_settings_button_thread, args=()).start()
 
-# Change position, parameters, and plot IP/Port settings (TCP Address, Port, Topic)
-def changeIPPortSettingsButton():
-    global portAddress
-    global statusBar
+def change_IP_port_settings_button():
+    """Change position, parameters, and plot IP/Port settings (TCP Address, Port, Topic)"""
+
+    global port_address
+    global status_bar
     
-    statusBar.clearMessage()
-    portAddress = PortSettingPopUpWidget("IP/Port Settings")
-    displayStatusBarMessage()
+    status_bar.clearMessage()
+    port_address = PortSettingPopUpWidget("IP/Port Settings")
+    DisplayStatusBarMessageThread()
 
 # =====================================================================
 # Update timer and thread functions
 # =====================================================================
 
-# Current position update
-def positionUpdate():
-    global currentPositionValue
-    global motorPlot
+def position_update():
+    """Current position update"""
 
-    currentPositionValue = str(motorPlot.getCurrentPositionValue())
-    currentPosition.setText(currentPositionValue)
+    global current_position_value
+    global rotational_controller_plot
 
-# Update fields with selected preset setting
-def presetSettingsUpdate():
+    current_position_value = str(rotational_controller_plot.get_current_position_value())
+    current_position.setText(current_position_value)
+
+def preset_settings_update():
+    """Update fields with selected preset values"""
+
     name = str(presets.currentText()) 
-    position.setText(presetTable[name]["position"])
-    velocity.setText(presetTable[name]["velocity"])
-    acceleration.setText(presetTable[name]["acceleration"])
+    position.setText(preset_table[name]["position"])
+    velocity.setText(preset_table[name]["velocity"])
+    acceleration.setText(preset_table[name]["acceleration"])
 
-# Update the velocity, acceleration, and position min/max range (low,high) of input
-def parametersUpdate():
-    global velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units
-    global position, velocity, acceleration, motorPlot, home
+def parameter_update():
+    """Update the velocity, acceleration, and position min/max range (low,high) of input"""
+
+    global velocity_min
+    global velocity_max 
+    global acceleration_min 
+    global acceleration_max 
+    global position_min 
+    global position_max 
+    global home_flag 
+    global units
+    global position
+    global velocity 
+    global acceleration 
+    global rotational_controller_plot 
+    global home
     
-    if motorPlot.getParameterVerified():
+    if rotational_controller_plot.get_parameter_verified():
         position.clear()
         velocity.clear()
         acceleration.clear()
-        velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units = motorPlot.getParameterInformation()
-        if homeFlag == 'false':
+        velocity_min, velocity_max, acceleration_min, acceleration_max, position_min, position_max, home_flag, units = rotational_controller_plot.get_parameter_information()
+        if home_flag == 'false':
             home.setEnabled(False)
         else:
             home.setEnabled(True)
-        position.setValidator(QtGui.QIntValidator(int(positionMin), int(positionMax)))
-        velocity.setValidator(QtGui.QIntValidator(int(velocityMin), int(velocityMax)))
-        acceleration.setValidator(QtGui.QIntValidator(int(accelerationMin), int(accelerationMax)))
+        position.setValidator(QtGui.QIntValidator(int(position_min), int(position_max)))
+        velocity.setValidator(QtGui.QIntValidator(int(velocity_min), int(velocity_max)))
+        acceleration.setValidator(QtGui.QIntValidator(int(acceleration_min), int(acceleration_max)))
 
-# Display port connection status indicators 
-def initStatusColors():
-    global positionStatus, parameterStatus, plotStatus
-    global plot, motorPlot
+def initialize_status_colors():
+    """Display port connection status indicators"""
 
-    styleSettingValid = "border-radius: 6px; padding:5px; background-color: #5fba7d"
-    styleSettingInvalid = "border-radius: 6px; padding:5px; background-color: #f78380"
+    global position_status
+    global parameter_status 
+    global plot_status
+    global plot
+    global rotational_controller_plot
 
-    plotStatus.setStyleSheet(styleSettingValid) if plot.getVerified() else plotStatus.setStyleSheet(styleSettingInvalid)
-    positionStatus.setStyleSheet(styleSettingValid) if motorPlot.getPositionVerified() else positionStatus.setStyleSheet(styleSettingInvalid)
-    parameterStatus.setStyleSheet(styleSettingValid) if motorPlot.getParameterVerified() else parameterStatus.setStyleSheet(styleSettingInvalid)
+    style_setting_valid = "border-radius: 6px; padding:5px; background-color: #5fba7d"
+    style_setting_invalid  = "border-radius: 6px; padding:5px; background-color: #f78380"
 
-# Initialize socket connections and parameter settings
-def initGlobalVariables():
-    global velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units
-    global motorPlot
-    global parameter_socket, position_socket
-    if motorPlot.getParameterVerified():
-        velocityMin, velocityMax, accelerationMin, accelerationMax, positionMin, positionMax, homeFlag, units = motorPlot.getParameterInformation()
-        parameter_socket = motorPlot.getParameterSocket()
-    if motorPlot.getPositionVerified():
-        position_socket = motorPlot.getPositionSocket()
+    plot_status.setStyleSheet(style_setting_valid) if plot.get_verified() else plot_status.setStyleSheet(style_setting_invalid)
+    position_status.setStyleSheet(style_setting_valid) if rotational_controller_plot.get_position_verified() else position_status.setStyleSheet(style_setting_invalid)
+    parameter_status.setStyleSheet(style_setting_valid) if rotational_controller_plot.get_parameter_verified() else parameter_status.setStyleSheet(style_setting_invalid)
+
+def initialize_global_variables():
+    """Initialize socket connections and parameter settings"""
+
+    global velocity_min
+    global velocity_max 
+    global acceleration_min 
+    global acceleration_max 
+    global position_min 
+    global position_max 
+    global home_flag 
+    global units
+    global rotational_controller_plot
+    global parameter_socket
+    global position_socket
+
+    if rotational_controller_plot.get_parameter_verified():
+        velocity_min, velocity_max, acceleration_min, acceleration_max, position_min, position_max, home_flag, units = rotational_controller_plot.get_parameter_information()
+        parameter_socket = rotational_controller_plot.get_parameter_socket()
+    if rotational_controller_plot.get_position_verified():
+        position_socket = rotational_controller_plot.get_position_socket()
 
 # =====================================================================
 # Utility Functions 
 # =====================================================================
 
-# Clear plot data 
-def clearPlots():
+def clear_plots():
+    """Clear plot data"""
+
     global plot
-    global motorPlot
-    global statusBar
+    global rotational_controller_plot
+    global status_bar
 
-    plot.clearZMQPlot()
-    motorPlot.clearRotationalControllerPlot()
-    statusBar.showMessage('Plots cleared', 4000)
+    plot.clear_ZMQ_plot()
+    rotational_controller_plot.clear_rotational_controller_plot()
+    status_bar.showMessage('Plots cleared', 4000)
 
-# Opens color palette selector to change color
-def changePlotColor(plotObject):
-    def changePlotColorThread():
-        plotColor = PlotColorWidget(plotObject)
-    Thread(target=changePlotColorThread(), args=()).start()
+def change_plot_color(plotObject):
+    """Opens color palette selector to change color"""
+
+    def change_plot_color_thread():
+        plot_color = PlotColorWidget(plotObject)
+    Thread(target=change_plot_color_thread(), args=()).start()
 
 # =====================================================================
 # Main GUI Application
@@ -597,18 +689,18 @@ mw = QtGui.QMainWindow()
 mw.setWindowTitle('Rotational Controller GUI')
 
 # Read in configuration settings
-readSettings()
+read_settings()
 
-# Initialize statusbar
-statusBar = QtGui.QStatusBar()
-mw.setStatusBar(statusBar)
-statusBar.setSizeGripEnabled(False)
+# Initialize status_bar
+status_bar = QtGui.QStatusBar()
+mw.setStatusBar(status_bar)
+status_bar.setSizeGripEnabled(False)
 
 # Create ZMQ plot and rotational controller plot
 plot = ZMQPlotWidget(ZMQ_address, ZMQ_topic, ZMQ_frequency)
-motorPlot = RotationalControllerPlotWidget(position_address, position_topic, position_frequency, parameter_address)
+rotational_controller_plot = RotationalControllerPlotWidget(position_address, position_topic, position_frequency, parameter_address)
 
-initGlobalVariables()
+initialize_global_variables()
 
 # Create and set widget layout
 # Main widget container
@@ -627,158 +719,158 @@ pg.setConfigOption('leftButtonPan', False)
 
 # Arrange widget layouts
 ml.addLayout(l,0,0,1,1)
-ml.addWidget(plot.getZMQPlotWidget(),1,0,1,1)
-ml.addWidget(motorPlot.getRotationalControllerPlotWidget(),0,1,2,1)
+ml.addWidget(plot.get_ZMQ_plot_widget(),1,0,1,1)
+ml.addWidget(rotational_controller_plot.get_rotational_controller_plot_widget(),0,1,2,1)
 mw.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
 
 # Menubar/Toolbar
 mb = mw.menuBar()
-fileMenu = mb.addMenu('&File')
-displayMenu = mb.addMenu('&Display')
-formatMenu = mb.addMenu('&Format')
+file_menu = mb.addMenu('&File')
+display_menu = mb.addMenu('&Display')
+format_menu = mb.addMenu('&Format')
 
 # File menu
-portChangeAction = QtGui.QAction('Change Port Settings', mw)
-portChangeAction.setShortcut('Ctrl+P')
-portChangeAction.setStatusTip('Change position, parameter, or plot port settings')
-portChangeAction.triggered.connect(changeIPPortSettingsButton)
-fileMenu.addAction(portChangeAction)
+port_change_action = QtGui.QAction('Change Port Settings', mw)
+port_change_action.setShortcut('Ctrl+P')
+port_change_action.setStatusTip('Change position, parameter, or plot port settings')
+port_change_action.triggered.connect(change_IP_port_settings_button)
+file_menu.addAction(port_change_action)
 
-moveAction = QtGui.QAction('Move', mw)
-moveAction.setShortcut('Ctrl+M')
-moveAction.setStatusTip('Move to specified position')
-moveAction.triggered.connect(moveButton)
-fileMenu.addAction(moveAction)
+move_action = QtGui.QAction('Move', mw)
+move_action.setShortcut('Ctrl+M')
+move_action.setStatusTip('Move to specified position')
+move_action.triggered.connect(move_button)
+file_menu.addAction(move_action)
 
-homeAction = QtGui.QAction('Home', mw)
-homeAction.setShortcut('Ctrl+H')
-homeAction.setStatusTip('Reset rotational controller to home position')
-homeAction.triggered.connect(homeButton)
-fileMenu.addAction(homeAction)
+home_action = QtGui.QAction('Home', mw)
+home_action.setShortcut('Ctrl+H')
+home_action.setStatusTip('Reset rotational controller to home position')
+home_action.triggered.connect(home_button)
+file_menu.addAction(home_action)
 
-addPresetAction = QtGui.QAction('Add Preset', mw)
-addPresetAction.setShortcut('Ctrl+A')
-addPresetAction.setStatusTip('Save current values into a preset setting')
-addPresetAction.triggered.connect(addPresetSettingsButton)
-fileMenu.addAction(addPresetAction)
+add_preset_button = QtGui.QAction('Add Preset', mw)
+add_preset_button.setShortcut('Ctrl+A')
+add_preset_button.setStatusTip('Save current values into a preset setting')
+add_preset_button.triggered.connect(add_preset_settings_button)
+file_menu.addAction(add_preset_button)
 
-exitAction = QtGui.QAction('Exit', mw)
-exitAction.setShortcut('Ctrl+Q')
-exitAction.setStatusTip('Exit application')
-exitAction.triggered.connect(QtGui.qApp.quit)
-fileMenu.addAction(exitAction)
+exit_action = QtGui.QAction('Exit', mw)
+exit_action.setShortcut('Ctrl+Q')
+exit_action.setStatusTip('Exit application')
+exit_action.triggered.connect(QtGui.qApp.quit)
+file_menu.addAction(exit_action)
 
 # Display Menu
-clearGraphAction = QtGui.QAction('Clear Plots', mw)
-clearGraphAction.setShortcut('Ctrl+C')
-clearGraphAction.setStatusTip('Clear current plot views')
-clearGraphAction.triggered.connect(clearPlots)
-displayMenu.addAction(clearGraphAction)
+clear_graph_action = QtGui.QAction('Clear Plots', mw)
+clear_graph_action.setShortcut('Ctrl+C')
+clear_graph_action.setStatusTip('Clear current plot views')
+clear_graph_action.triggered.connect(clear_plots)
+display_menu.addAction(clear_graph_action)
 
-changeZMQPlotColorAction = QtGui.QAction('Change ZMQ Plot Color', mw)
-changeZMQPlotColorAction.setStatusTip('Change ZMQ plot color')
-changeZMQPlotColorAction.triggered.connect(lambda: changePlotColor(plot))
-displayMenu.addAction(changeZMQPlotColorAction)
+change_ZMQ_plot_color_action = QtGui.QAction('Change ZMQ Plot Color', mw)
+change_ZMQ_plot_color_action.setStatusTip('Change ZMQ plot color')
+change_ZMQ_plot_color_action.triggered.connect(lambda: change_plot_color(plot))
+display_menu.addAction(change_ZMQ_plot_color_action)
 
-changeRotationalControllerPlotColorAction = QtGui.QAction('Change Rotational Controller Plot Color ', mw)
-changeRotationalControllerPlotColorAction.setStatusTip('Change rotational controller plot color')
-changeRotationalControllerPlotColorAction.triggered.connect(lambda: changePlotColor(motorPlot))
-displayMenu.addAction(changeRotationalControllerPlotColorAction)
+change_rotational_controller_plot_color_action = QtGui.QAction('Change Rotational Controller Plot Color ', mw)
+change_rotational_controller_plot_color_action.setStatusTip('Change rotational controller plot color')
+change_rotational_controller_plot_color_action.triggered.connect(lambda: change_plot_color(rotational_controller_plot))
+display_menu.addAction(change_rotational_controller_plot_color_action)
 
 # Format Menu
-writeToFileToggle = QtGui.QAction('Save Port Settings', mw, checkable=True)
-writeToFileToggle.setShortcut('Ctrl+S')
-writeToFileToggle.setStatusTip('Save port setting changes to motor.ini')
-writeToFileToggle.triggered.connect(writePortSettingsToggle)
-formatMenu.addAction(writeToFileToggle)
+write_to_file_toggle = QtGui.QAction('Save Port Settings', mw, checkable=True)
+write_to_file_toggle.setShortcut('Ctrl+S')
+write_to_file_toggle.setStatusTip('Save port setting changes to rotational.ini')
+write_to_file_toggle.triggered.connect(write_port_settings_toggle)
+format_menu.addAction(write_to_file_toggle)
 
 # GUI elements
-statusLabel = QtGui.QLabel('Port Status')
-positionStatus = QtGui.QLabel('Position')
-positionStatus.setAlignment(QtCore.Qt.AlignCenter)
-parameterStatus = QtGui.QLabel('Parameter')
-parameterStatus.setAlignment(QtCore.Qt.AlignCenter)
-plotStatus = QtGui.QLabel('Plot')
-plotStatus.setAlignment(QtCore.Qt.AlignCenter)
+status_label = QtGui.QLabel('Port Status')
+position_status = QtGui.QLabel('Position')
+position_status.setAlignment(QtCore.Qt.AlignCenter)
+parameter_status = QtGui.QLabel('Parameter')
+parameter_status.setAlignment(QtCore.Qt.AlignCenter)
+plot_status = QtGui.QLabel('Plot')
+plot_status.setAlignment(QtCore.Qt.AlignCenter)
 
-portSettings = QtGui.QPushButton('IP/Port Settings')
-portSettings.clicked.connect(changeIPPortSettingsButton)
+port_settings = QtGui.QPushButton('IP/Port Settings')
+port_settings.clicked.connect(change_IP_port_settings_button)
 
-velocityLabel = QtGui.QLabel()
-velocityLabel.setText('Velocity (deg/s)')
+velocity_label = QtGui.QLabel()
+velocity_label.setText('Velocity (deg/s)')
 velocity = QtGui.QLineEdit()
 velocity.setAlignment(QtCore.Qt.AlignLeft)
 
-accelerationLabel = QtGui.QLabel()
-accelerationLabel.setText('Acceleration (deg/s^2)')
+acceleration_label = QtGui.QLabel()
+acceleration_label.setText('Acceleration (deg/s^2)')
 acceleration = QtGui.QLineEdit()
 acceleration.setAlignment(QtCore.Qt.AlignLeft)
 
-positionLabel = QtGui.QLabel()
-positionLabel.setText('Position (deg)')
+position_label = QtGui.QLabel()
+position_label.setText('Position (deg)')
 position = QtGui.QLineEdit()
 position.setAlignment(QtCore.Qt.AlignLeft)
 
-currentPositionLabel = QtGui.QLabel()
-currentPositionLabel.setText('Current Position')
-currentPosition = QtGui.QLabel()
+current_position_label = QtGui.QLabel()
+current_position_label.setText('Current Position')
+current_position = QtGui.QLabel()
 
 move = QtGui.QPushButton('Move')
-move.clicked.connect(moveButton)
+move.clicked.connect(move_button)
 
 home = QtGui.QPushButton('Home')
-home.clicked.connect(homeButton)
+home.clicked.connect(home_button)
 
 # Disable home button if unavailable
-if motorPlot.getParameterVerified():
-    if homeFlag == 'false':
+if rotational_controller_plot.get_parameter_verified():
+    if home_flag == 'false':
         home.setEnabled(False)
 
-presetTable = {}
-presetLabel = QtGui.QLabel()
-presetLabel.setText('Presets')
+preset_table = {}
+preset_label = QtGui.QLabel()
+preset_label.setText('Presets')
 presets = QtGui.QComboBox()
-presets.activated.connect(presetSettingsUpdate)
-presetName = QtGui.QLineEdit()
-presetName.setFixedWidth(80)
-presetName.setPlaceholderText("Preset name")
-presetButton = QtGui.QPushButton('Add Preset')
-presetButton.clicked.connect(addPresetSettingsButton)
-presetLayout = QtGui.QHBoxLayout()
-presetLayout.addWidget(presets)
-presetLayout.addWidget(presetName)
-presetLayout.addWidget(presetButton)
+presets.activated.connect(preset_settings_update)
+preset_name = QtGui.QLineEdit()
+preset_name.setFixedWidth(80)
+preset_name.setPlaceholderText("Preset name")
+preset_button = QtGui.QPushButton('Add Preset')
+preset_button.clicked.connect(add_preset_settings_button)
+preset_layout = QtGui.QHBoxLayout()
+preset_layout.addWidget(presets)
+preset_layout.addWidget(preset_name)
+preset_layout.addWidget(preset_button)
 
-parametersUpdate()
-initStatusColors()
+parameter_update()
+initialize_status_colors()
 
 # Layout
-l.addWidget(statusLabel,0,0,1,1)
-l.addWidget(positionStatus,0,1,1,1)
-l.addWidget(parameterStatus,0,2,1,1)
-l.addWidget(plotStatus,0,3,1,1)
+l.addWidget(status_label,0,0,1,1)
+l.addWidget(position_status,0,1,1,1)
+l.addWidget(parameter_status,0,2,1,1)
+l.addWidget(plot_status,0,3,1,1)
 
-l.addWidget(portSettings,1,0,1,4)
-l.addWidget(velocityLabel,2,0,1,2)
+l.addWidget(port_settings,1,0,1,4)
+l.addWidget(velocity_label,2,0,1,2)
 l.addWidget(velocity,2,2,1,2)
-l.addWidget(accelerationLabel,3,0,1,2)
+l.addWidget(acceleration_label,3,0,1,2)
 l.addWidget(acceleration,3,2,1,2)
-l.addWidget(positionLabel,4,0,1,2)
+l.addWidget(position_label,4,0,1,2)
 l.addWidget(position,4,2,1,2)
-l.addWidget(currentPositionLabel,5,0,1,2)
+l.addWidget(current_position_label,5,0,1,2)
 
-l.addWidget(currentPosition,5,2,1,2)
+l.addWidget(current_position,5,2,1,2)
 l.addWidget(move,6,0,1,4)
 l.addWidget(home,7,0,1,4)
-l.addWidget(presetLabel,8,0,1,1)
+l.addWidget(preset_label,8,0,1,1)
 l.addWidget(presets,8,1,1,1)
-l.addWidget(presetName,8,2,1,1)
-l.addWidget(presetButton,8,3,1,1)
+l.addWidget(preset_name,8,2,1,1)
+l.addWidget(preset_button,8,3,1,1)
 
 # Start internal timers and threads 
-positionUpdateTimer = QtCore.QTimer()
-positionUpdateTimer.timeout.connect(positionUpdate)
-positionUpdateTimer.start(motorPlot.getRotationalControllerTimerFrequency())
+position_update_timer = QtCore.QTimer()
+position_update_timer.timeout.connect(position_update)
+position_update_timer.start(rotational_controller_plot.get_rotational_controller_timer_frequency())
 
 mw.statusBar()
 mw.show()
