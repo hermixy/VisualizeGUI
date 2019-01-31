@@ -10,6 +10,7 @@ import sys
 from threading import Thread
 import time
 import configparser
+import logging
 
 """Rotational Controller GUI
 
@@ -48,34 +49,42 @@ def read_settings():
         position_address = str(config['ROTATIONAL_CONTROLLER']['position_address'])
         position_topic = str(config['ROTATIONAL_CONTROLLER']['position_topic'])
         parameter_address = str(config['ROTATIONAL_CONTROLLER']['parameter_address'])
+        # Checking position and parameter settings
         try:
             position_frequency = float(config['ROTATIONAL_CONTROLLER']['position_frequency'])
             if position_frequency <= 0:
                 QtGui.QMessageBox.about(QtGui.QWidget(), 'Error',
                         'position_frequency value cannot be zero or negative. Check rotational.ini')
+                logging.error('position_frequency value cannot be zero or negative.')
                 exit(1)
         # Input was not a valid number 
         except ValueError:
             QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'Invalid position_frequency value. Check rotational.ini')
+            logging.exception("Invalid position_frequency value.")
             exit(1)
 
         ZMQ_address = str(config['ZMQ_PLOT']['ZMQ_address']) 
         ZMQ_topic = str(config['ZMQ_PLOT']['ZMQ_topic'])
+        # Checking ZMQ plot settings
         try:
             ZMQ_frequency = float(config['ZMQ_PLOT']['ZMQ_frequency'])
             if ZMQ_frequency <= 0:
                 QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'ZMQ_frequency value cannot be zero or negative. Check rotational.ini')
+                logging.error('ZMQ_frequency value cannot be zero or negative.')
                 exit(1)
         # Input was not a valid number 
         except ValueError:
             QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'Invalid ZMQ_frequency value. Check rotational.ini')
+            logging.exception("Invalid ZMQ_frequency value.")
             exit(1)
     
     # Create empty default rotational.ini file if doesn't exist
     except KeyError:
         create_empty_settings_file()
         QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'rotational.ini created, add settings into file')
+        logging.exception("rotational.ini file was not found. File has been created. Add settings into file.")
         exit(1)
+    logging.info('Successfully loaded .ini configuration file')
 
 def write_settings(key, table):
     """Write port settings into rotational.ini file with any new connection"""
@@ -113,10 +122,12 @@ def write_port_settings_toggle():
     if save_settings:
         save_settings = False
         status_bar.showMessage('Write to rotational.ini disabled', 4000)
+        logging.info('Write to rotational.ini disabled')
     else: 
         save_settings = True
         write_current_port_settings()
         status_bar.showMessage('Write to rotational.ini enabled', 4000)
+        logging.info('Write to rotational.ini enabled')
 
 def write_current_port_settings():
     """Save current port settings into .ini file"""
@@ -124,9 +135,11 @@ def write_current_port_settings():
     global position_settings
     global parameter_settings
     global ZMQ_plot_settings
-
+    
     try:
         write_settings('ROTATIONAL_CONTROLLER', position_settings)
+    # Raises error since position_settings is created once user successfuly changes to new port
+    # otherwise variable does not exist yet
     except NameError:
         pass
     try:
@@ -137,6 +150,15 @@ def write_current_port_settings():
         write_settings('ZMQ_PLOT', ZMQ_plot_settings)
     except NameError:
         pass
+
+def initialize_logger():
+    """Logging configuration settings
+
+    Create log files in rotational.log and log events with INFO status or higher
+    """
+
+    logging.basicConfig(filename='rotational.log', filemode='w', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
+    logging.info('Successfully loaded logger configuration settings')
 
 # =====================================================================
 # Port connection popup widget  
@@ -277,7 +299,8 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         global position_topic
         global position_status
         global position_settings
-
+        
+        logging.info("Attempt to connect to new position port")
         if address and port and topic:
             new_position_address = "tcp://" + address + ":" + port
             if new_position_address != position_address or rotational_controller_plot.get_position_topic() != topic:
@@ -297,17 +320,21 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                         self.status = ('success', position_address)
                         rotational_controller_plot.set_position_verified(True)
                         position_status.setStyleSheet(self.style_setting_valid)
+                        logging.info('Successfully connected to position port with address:{}, port:{}, topic:{}'.format(address, port, topic))
                         return
                     except zmq.ZMQError, e:
                         # No data arrived
                         if e.errno == zmq.EAGAIN:
                             pass
                 self.status = ('fail', position_address)
+                logging.info('Failed to connect to position port with address:{}, port:{}, topic:{}'.format(address, port, topic))
             else:
                 self.status = ('same', position_address)
+                logging.info('Already connected to position port with address:{}, port:{}, topic:{}'.format(address, port, topic))
         else:
             self.status = ('fail', position_address)
-    
+            logging.info('Failed to connect to position port. Empty settings')
+
     def parameter_save_button(self):
         """Parses parameter input and sets port if validated"""
 
@@ -330,6 +357,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         global parameter_status
         global parameter_settings
         
+        logging.info("Attempt to connect to new parameter port")
         if address and port:
             new_parameter_address = "tcp://" + address + ":" + port
             if new_parameter_address != parameter_address:
@@ -341,6 +369,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                 socket.send("info?")
                 # Check for valid data within time interval in seconds (s)
                 time_end = time.time() + self.DATA_TIMEOUT
+                # Data will be placed into result if successful connection
                 while time.time() < time_end:
                     try:
                         result = socket.recv(zmq.NOBLOCK).split(',')
@@ -351,16 +380,20 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                         write_settings('ROTATIONAL_CONTROLLER', parameter_settings) 
                         self.status = ('success', parameter_address)
                         parameter_status.setStyleSheet(self.style_setting_valid)
+                        logging.info('Successfully connected to parameter port with address:{}, port:{}'.format(address, port))
                         return
                     except zmq.ZMQError, e:
                         # No data arrived
                         if e.errno == zmq.EAGAIN:
                             pass
                 self.status = ('fail', parameter_address)
+                logging.info('Failed to connect to parameter port with address:{} and port:{}'.format(address, port))
             else:
                 self.status = ('same', parameter_address)
+                logging.info('Already connected to parameter port with address:{} and port:{}'.format(address, port))
         else:
             self.status = ('fail', parameter_address)
+            logging.info('Failed to connect to parameter port. Empty settings.')
 
     def change_parameter_port(self, address):
         """Sets parameter port with new settings"""
@@ -393,6 +426,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         global plot_status
         global ZMQ_plot_settings
         
+        logging.info("Attempt to connect to new plot port")
         if address and port and topic:
             new_plot_address = "tcp://" + address + ":" + port
             if plot.get_ZMQ_plot_address() != new_plot_address or plot.get_ZMQ_topic() != topic:
@@ -412,16 +446,20 @@ class PortSettingPopUpWidget(QtGui.QWidget):
                         write_settings('ZMQ_PLOT', ZMQ_plot_settings) 
                         self.status = ('success', new_plot_address)
                         plot_status.setStyleSheet(self.style_setting_valid)
+                        logging.info('Successfully connected to plot port with address:{}, port:{}, topic:{}'.format(address, port, topic))
                         return
                     except zmq.ZMQError, e:
                         # No data arrived
                         if e.errno == zmq.EAGAIN:
                             pass
                 self.status = ('fail', new_plot_address)
+                logging.info('Failed to connect to plot port with address:{}, port:{}, topic:{}'.format(address, port, topic))
             else:
                 self.status = ('same', new_plot_address)
+                logging.info('Already connected to plot port with address:{}, port:{}, topic:{}'.format(address, port, topic))
         else:
             self.status = ('fail', plot.get_ZMQ_plot_address())
+            logging.info('Failed to connect to plot port. Empty settings')
 
 # =====================================================================
 # Status bar message timer widget
@@ -535,6 +573,7 @@ def move_button():
                     command = "move {} {} {}".format(v,a,p)
                     parameter_socket.send(command)
                     result = parameter_socket.recv()
+                    logging.info("Moved with velocity:{}, acceleration:{}, position:{}".format(v,a,p))
                 else:
                     pass
             # No data arrived
@@ -553,6 +592,7 @@ def home_button():
             try:
                 parameter_socket.send("home")
                 result = parameter_socket.recv()
+                logging.info("Home button pressed")
             # No data arrived
             except zmq.ZMQError:
                 pass
@@ -580,6 +620,7 @@ def add_preset_settings_button():
         index = presets.findText(name)
         presets.setCurrentIndex(index)
         preset_name.clear()
+        logging.info("Successfully added {} preset".format(name))
     Thread(target=add_preset_settings_button_thread, args=()).start()
 
 def change_IP_port_settings_button():
@@ -677,8 +718,10 @@ def initialize_global_variables():
     if rotational_controller_plot.get_parameter_verified():
         velocity_min, velocity_max, acceleration_min, acceleration_max, position_min, position_max, home_flag, units = rotational_controller_plot.get_parameter_information()
         parameter_socket = rotational_controller_plot.get_parameter_socket()
+        logging.info('Successfully connected to parameter socket')
     if rotational_controller_plot.get_position_verified():
         position_socket = rotational_controller_plot.get_position_socket()
+        logging.info('Successfully connected to position socket')
 
 # =====================================================================
 # Utility Functions 
@@ -693,6 +736,7 @@ def clear_plots():
 
     plot.clear_ZMQ_plot()
     rotational_controller_plot.clear_rotational_controller_plot()
+    logging.info("Cleared plots")
     status_bar.showMessage('Plots cleared', 4000)
 
 def change_plot_color(plotObject):
@@ -701,6 +745,13 @@ def change_plot_color(plotObject):
     def change_plot_color_thread():
         plot_color = PlotColorWidget(plotObject)
     Thread(target=change_plot_color_thread(), args=()).start()
+    logging.info("Changed {} plot color".format(type(plotObject)))
+
+def exit_application():
+    """Exit program event handler"""
+
+    logging.info('Closed application')
+    exit(1)
 
 # =====================================================================
 # Main GUI Application
@@ -711,6 +762,9 @@ app = QtGui.QApplication([])
 app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
 mw.setWindowTitle('Rotational Controller GUI')
+
+# Start logger
+initialize_logger()
 
 # Read in configuration settings
 read_settings()
@@ -781,7 +835,7 @@ file_menu.addAction(add_preset_button)
 exit_action = QtGui.QAction('Exit', mw)
 exit_action.setShortcut('Ctrl+Q')
 exit_action.setStatusTip('Exit application')
-exit_action.triggered.connect(QtGui.qApp.quit)
+exit_action.triggered.connect(exit_application)
 file_menu.addAction(exit_action)
 
 # Display Menu
