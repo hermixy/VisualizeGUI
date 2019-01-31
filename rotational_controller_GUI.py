@@ -696,9 +696,26 @@ def initialize_status_colors():
     style_setting_valid = "border-radius: 6px; padding:5px; background-color: #5fba7d"
     style_setting_invalid  = "border-radius: 6px; padding:5px; background-color: #f78380"
 
-    plot_status.setStyleSheet(style_setting_valid) if plot.get_verified() else plot_status.setStyleSheet(style_setting_invalid)
-    position_status.setStyleSheet(style_setting_valid) if rotational_controller_plot.get_position_verified() else position_status.setStyleSheet(style_setting_invalid)
-    parameter_status.setStyleSheet(style_setting_valid) if rotational_controller_plot.get_parameter_verified() else parameter_status.setStyleSheet(style_setting_invalid)
+    if rotational_controller_plot.get_position_verified():
+        position_status.setStyleSheet(style_setting_valid) 
+        logging.info('Successfully connected to position socket')
+    else:
+        position_status.setStyleSheet(style_setting_invalid)
+        logging.info('Failed to connect to position socket')
+
+    if rotational_controller_plot.get_parameter_verified():
+        parameter_status.setStyleSheet(style_setting_valid) 
+        logging.info('Successfully connected to parameter socket')
+    else:
+        parameter_status.setStyleSheet(style_setting_invalid)
+        logging.info('Failed to connect to parameter socket')
+
+    if plot.get_verified():
+        plot_status.setStyleSheet(style_setting_valid)
+        logging.info('Successfully connected to plot socket')
+    else:
+        plot_status.setStyleSheet(style_setting_invalid)
+        logging.info('Failed to connect to plot socket')
 
 def initialize_global_variables():
     """Initialize socket connections and parameter settings"""
@@ -718,10 +735,8 @@ def initialize_global_variables():
     if rotational_controller_plot.get_parameter_verified():
         velocity_min, velocity_max, acceleration_min, acceleration_max, position_min, position_max, home_flag, units = rotational_controller_plot.get_parameter_information()
         parameter_socket = rotational_controller_plot.get_parameter_socket()
-        logging.info('Successfully connected to parameter socket')
     if rotational_controller_plot.get_position_verified():
         position_socket = rotational_controller_plot.get_position_socket()
-        logging.info('Successfully connected to position socket')
 
 # =====================================================================
 # Utility Functions 
