@@ -963,7 +963,8 @@ l.addWidget(preset_button,8,3,1,1)
 # Start internal timers and threads 
 position_update_timer = QtCore.QTimer()
 position_update_timer.timeout.connect(position_update)
-position_update_timer.start(rotational_controller_plot.get_rotational_controller_timer_frequency())
+# Plot refresh rate 
+position_update_timer.start(rotational_controller_plot.get_rotational_controller_plot_refresh_rate())
 
 mw.statusBar()
 mw.show()

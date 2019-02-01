@@ -32,22 +32,24 @@ class ZMQPlotWidget(QtGui.QWidget):
         
         self.verified = False
         # FREQUENCY HAS TO BE SAME AS SERVER'S FREQUENCY
-        # Desired Frequency (Hz) = 1 / self.ZMQ_FREQUENCY
         # USE FOR TIME.SLEEP (s)
+        # self.ZMQ_FREQUENCY = 1 / Desired Frequency (Hz)
         self.ZMQ_FREQUENCY = ZMQ_frequency
 
-        # Frequency to update plot (ms)
+        # Screen refresh rate to update plot (ms)
         # USE FOR TIMER.TIMER (ms)
-        self.ZMQ_TIMER_FREQUENCY = self.ZMQ_FREQUENCY * 1000
+        # self.ZMQ_PLOT_REFRESH_RATE = 1 / Desired Frequency (Hz) * 1000
+        self.ZMQ_PLOT_REFRESH_RATE = 7
+
         self.DATA_TIMEOUT = 1
 
         # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 0
         self.ZMQ_LEFT_X = -10
         self.ZMQ_RIGHT_X = 0
         self.ZMQ_x_axis = np.arange(self.ZMQ_LEFT_X, self.ZMQ_RIGHT_X, self.ZMQ_FREQUENCY)
-        self.ZMQ_buffer = int((abs(self.ZMQ_LEFT_X) + abs(self.ZMQ_RIGHT_X))/self.ZMQ_FREQUENCY)
+        self.ZMQ_buffer_size = int((abs(self.ZMQ_LEFT_X) + abs(self.ZMQ_RIGHT_X))/self.ZMQ_FREQUENCY)
+
         self.ZMQ_data = [] 
-        self.old_ZMQ_data_point = 0
         
         # Create ZMQ Plot Widget
         self.ZMQ_plot_widget = pg.PlotWidget()
@@ -108,20 +110,18 @@ class ZMQPlotWidget(QtGui.QWidget):
         """Reads position value from device and updates plot buffer"""
 
         if self.verified:
-            # Receives (topic, data)
-            try:
-                self.topic, self.ZMQ_data_point = self.ZMQ_socket.recv().split()
-                self.old_ZMQ_data_point = self.ZMQ_data_point
-            except zmq.ZMQError, e:
-                # No data arrived
-                if e.errno == zmq.EAGAIN:
-                    self.ZMQ_data_point = self.old_ZMQ_data_point
-
-            if len(self.ZMQ_data) >= self.ZMQ_buffer:
-                self.ZMQ_data.pop(0)
-            
-            self.ZMQ_data.append(float(self.ZMQ_data_point))
-            self.ZMQ_plot.setData(self.ZMQ_x_axis[len(self.ZMQ_x_axis) - len(self.ZMQ_data):], self.ZMQ_data)
+            while(True):
+                # Read data from buffer until empty
+                try:
+                    self.topic, self.ZMQ_data_point = self.ZMQ_socket.recv(zmq.NOBLOCK).split()
+                    if len(self.ZMQ_data) >= self.ZMQ_buffer_size:
+                        self.ZMQ_data.pop(0)
+                    self.ZMQ_data.append(float(self.ZMQ_data_point))
+                # No data arrived, buffer empty
+                except zmq.ZMQError, e:
+                    if e.errno == zmq.EAGAIN:
+                        self.ZMQ_plot.setData(self.ZMQ_x_axis[len(self.ZMQ_x_axis) - len(self.ZMQ_data):], self.ZMQ_data)
+                    break
 
     def clear_ZMQ_plot(self):
         self.ZMQ_data = []
@@ -139,8 +139,8 @@ class ZMQPlotWidget(QtGui.QWidget):
         return self.ZMQ_plot_widget
 
     # Version with QTimer (ms)
-    def get_ZMQ_timer_frequency(self):
-        return self.ZMQ_TIMER_FREQUENCY
+    def get_ZMQ_plot_refresh_rate(self):
+        return self.ZMQ_PLOT_REFRESH_RATE
 
     # Version with time.sleep (s) 
     def get_ZMQ_frequency(self):
@@ -158,7 +158,7 @@ class ZMQPlotWidget(QtGui.QWidget):
     def start(self):
         self.ZMQ_plot_timer = QtCore.QTimer()
         self.ZMQ_plot_timer.timeout.connect(self.ZMQ_plot_updater)
-        self.ZMQ_plot_timer.start(self.get_ZMQ_timer_frequency())
+        self.ZMQ_plot_timer.start(self.get_ZMQ_plot_refresh_rate())
 
 class RotationalControllerPlotWidget(QtGui.QWidget):
     """Plot with fixed data moving right to left
@@ -173,13 +173,14 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
         self.position_verified = False
         self.parameter_verified = False
         # FREQUENCY HAS TO BE SAME AS SERVER'S FREQUENCY
-        # Desired Frequency (Hz) = 1 / self.FREQUENCY
         # USE FOR TIME.SLEEP (s)
+        # self.FREQUENCY = 1 / Desired Frequency (Hz)
         self.FREQUENCY = position_frequency
 
-        # Frequency to update plot (ms)
+        # Screen refresh rate to update plot (ms)
         # USE FOR TIMER.TIMER (ms)
-        self.TIMER_FREQUENCY = self.FREQUENCY * 1000
+        # self.ROTATIONAL_CONTROLLER_PLOT_REFRESH_RATE = 1 / Desired Frequency (Hz) * 1000
+        self.ROTATIONAL_CONTROLLER_PLOT_REFRESH_RATE = 7
 
         # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 0
         self.LEFT_X = -10
@@ -208,7 +209,6 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
 
         self.initial_check_valid_position_port()
         self.initial_check_valid_parameter_port()
-        self.read_position_thread()
         self.start()
 
     def initial_check_valid_position_port(self):
@@ -291,43 +291,28 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
         """Initiates timer to update plot"""
 
         self.position_update_timer = QtCore.QTimer()
-        self.position_update_timer.timeout.connect(self.plot_updater)
-        self.position_update_timer.start(self.get_rotational_controller_timer_frequency())
+        self.position_update_timer.timeout.connect(self.rotational_controller_plot_updater)
+        self.position_update_timer.start(self.get_rotational_controller_plot_refresh_rate())
 
-    def read_position_thread(self):
-        """Start background thread to read position from the device"""
-
-        self.current_position_value = 0
-        self.old_current_position_value = 0
-        self.position_update_thread = Thread(target=self.read_position, args=())
-        self.position_update_thread.daemon = True
-        self.position_update_thread.start()
-
-    def read_position(self):
-        """Read position from device socket"""
-
-        frequency = self.get_rotational_controller_frequency()
-        while True:
-            try:
-                topic, self.current_position_value = self.position_socket.recv().split()
-                # Change to 0 since Rotational controller reports 0 as -0
-                if self.current_position_value == '-0.00':
-                    self.current_position_value = '0.00'
-                self.old_current_position_value = self.current_position_value
-            except AttributeError:
-                self.current_position_value = self.old_current_position_value
-            time.sleep(frequency)
-
-    def plot_updater(self):
-        """Updates data buffer with current position value"""
-
+    def rotational_controller_plot_updater(self):
+        """Read position from device socket and updates data buffer with current position value"""
+        
         if self.position_verified:
-            self.data_point = float(self.current_position_value)
-
-            if len(self.data) >= self.buffer:
-                self.data.pop(0)
-            self.data.append(self.data_point)
-            self.rotational_plot.setData(self.x_axis[len(self.x_axis) - len(self.data):], self.data)
+            while(True):
+                # Read data from buffer until empty
+                try:
+                    topic, self.current_position_value = self.position_socket.recv(zmq.NOBLOCK).split()
+                    # Change to 0 since Rotational controller reports 0 as -0
+                    if self.current_position_value == '-0.00':
+                        self.current_position_value = '0.00'
+                    if len(self.data) >= self.buffer:
+                        self.data.pop(0)
+                    self.data.append(float(self.current_position_value))
+                # No data arrived, buffer empty
+                except zmq.ZMQError, e:
+                    if e.errno == zmq.EAGAIN:
+                        self.rotational_plot.setData(self.x_axis[len(self.x_axis) - len(self.data):], self.data)
+                    break
 
     def clear_rotational_controller_plot(self):
         self.data = []
@@ -350,8 +335,8 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
     def get_rotational_controller_frequency(self):
         return self.FREQUENCY
     
-    def get_rotational_controller_timer_frequency(self):
-        return self.TIMER_FREQUENCY
+    def get_rotational_controller_plot_refresh_rate(self):
+        return self.ROTATIONAL_CONTROLLER_PLOT_REFRESH_RATE
 
     def get_rotational_controller_layout(self):
         return self.layout
@@ -363,7 +348,10 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
         return (self.velocity_min, self.velocity_max, self.acceleration_min, self.acceleration_max, self.position_min, self.position_max, self.home_flag, self.units)
 
     def get_current_position_value(self):
-        return self.current_position_value
+        try:
+            return self.current_position_value
+        except AttributeError:
+            return 0
 
     def get_position_verified(self):
         return self.position_verified
