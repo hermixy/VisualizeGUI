@@ -787,3 +787,151 @@ class OverlayWidget(QtGui.QWidget):
     def get_y(self):
         return self.crosshair.get_y()
 
+class UniversalPlotWidget(QtGui.QWidget):
+    def __init__(self, parent=None):
+        super(UniversalPlotWidget, self).__init__(parent)
+        
+        self.verified = False
+        self.DATA_TIMEOUT = 1
+        self.SPACING = 1
+        self.plot_address = 'tcp://192.168.1.143:6020'
+        self.plot_topic = '20000'
+        
+        self.DATA_POINTS_TO_DISPLAY = 1000
+
+        # Screen refresh rate to update plot (ms)
+        # self.UNIVERSAL_PLOT_REFRESH_RATE  = 1 / Desired Frequency (Hz) * 1000
+        self.UNIVERSAL_PLOT_REFRESH_RATE  = 20
+
+        # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 0
+        self.LEFT_X = 0
+        self.RIGHT_X = self.DATA_POINTS_TO_DISPLAY
+        self.x_axis = np.arange(self.LEFT_X, self.RIGHT_X, self.SPACING)
+        self.buffer_size = int((abs(self.LEFT_X) + abs(self.RIGHT_X))/self.SPACING)
+
+        # Create Universal Plot Widget
+        self.universal_plot_widget = pg.PlotWidget()
+        self.universal_plot_widget.plotItem.setMouseEnabled(x=False, y=False)
+        self.universal_plot_widget.setXRange(self.LEFT_X, self.RIGHT_X)
+        self.universal_plot_widget.setTitle('Universal Plot')
+        self.universal_plot_widget.setLabel('left', 'Value')
+        self.universal_plot_widget.setLabel('bottom', 'Data Points')
+
+        self.layout = QtGui.QGridLayout()
+        self.layout.addWidget(self.universal_plot_widget)
+
+        self.initial_check_valid_port()
+        self.universal_plot_timer = QtCore.QTimer()
+        self.universal_plot_timer.timeout.connect(self.universal_plot_updater)
+        self.universal_plot_timer.start(self.get_universal_plot_refresh_rate())
+        '''
+        self.get_frame_thread = Thread(target=self.read_data, args=())
+        self.get_frame_thread.daemon = True
+        self.get_frame_thread.start()
+        '''
+    
+    def initial_check_valid_port(self):
+        """Attempts to establish initial ZMQ socket connection"""
+
+        try:
+            context = zmq.Context()
+            socket = context.socket(zmq.SUB)
+            socket.connect(self.plot_address)
+            socket.setsockopt(zmq.SUBSCRIBE, self.plot_topic)
+            # Check for valid data within time interval in seconds (s)
+            time_end = time.time() + self.DATA_TIMEOUT
+            while time.time() < time_end:
+                try:
+                    topic, data = socket.recv(zmq.NOBLOCK).split()
+                    self.update_universal_plot_address(self.plot_address, self.plot_topic)
+                    self.initialize_plot()
+                    self.verified = True
+                    return
+                except zmq.ZMQError, e:
+                    # No data arrived
+                    if e.errno == zmq.EAGAIN:
+                        pass
+        # Invalid argument
+        except zmq.ZMQError, e:
+            self.verified = False
+
+    def update_universal_plot_address(self, address, topic):
+        """Sets ZMQ socket connection with given address and topic"""
+
+        self.plot_address = address 
+        self.plot_topic = topic
+        self.plot_context = zmq.Context()
+        self.plot_socket = self.plot_context.socket(zmq.SUB)
+        self.plot_socket.connect(self.plot_address)
+        self.plot_socket.setsockopt(zmq.SUBSCRIBE, self.plot_topic)
+
+    def initialize_plot(self):
+
+        # Confirmed valid ZMQ plot settings so can use blocking recv
+        topic, self.plot_data = self.plot_socket.recv().split()
+        
+        # Obtain header information
+        self.plot_data = self.plot_data.split(',')
+        print(self.plot_data[3::2][1:])
+        self.traces = int(self.plot_data[0])
+        self.y_scales = int(self.plot_data[1])
+        self.y_axis_left = list(self.plot_data[2].split(':'))
+        self.y_axis_right = list(self.plot_data[3].split(':'))
+
+        self.data_buffers = []
+        self.universal_plots = []
+
+        self.initialize_data_buffers()
+        self.create_plots()
+
+    def initialize_data_buffers(self):
+        # Initialize data buffers
+        for trace in range(self.traces):
+            self.data_buffers.append([])
+
+    def create_plots(self):
+        alpha = 150
+        self.color_table = {0: (212,240,255, alpha),
+                            1: (248,255,208, alpha),
+                            2: (242,215,255, alpha),
+                            3: (255,232,205, alpha),
+                            4: (255,239,243, alpha),
+                            5: (51,194,255, alpha),
+                            6: (255,146,92, alpha),
+                            7: (32,201,151, alpha),
+                            8: (10,10,124, alpha),
+                            9: (67,24,22, alpha)}
+
+        # Create plots
+        for trace in range(self.traces):
+            new_plot = self.universal_plot_widget.plot()
+            new_plot.setPen(self.color_table[trace], width=1.5)
+            self.universal_plots.append(new_plot)
+    
+    def universal_plot_updater(self):
+        """Reads data point from socket and updates plot buffers"""
+
+        if self.verified:
+            while(True):
+                # Read data from buffer until empty
+                try:
+                    self.topic, self.plot_data = self.plot_socket.recv(zmq.NOBLOCK).split()
+                    self.plot_data = self.plot_data.split(',')[3::2][1:]
+                    for trace in range(self.traces):
+                        if len(self.data_buffers[trace]) >= self.buffer_size:
+                            self.data_buffers[trace].pop(0)
+                        self.data_buffers[trace].append(float(self.plot_data[trace]))
+                # No data arrived, buffer empty
+                except zmq.ZMQError, e:
+                    if e.errno == zmq.EAGAIN:
+                        for trace in range(self.traces):
+                            self.universal_plots[trace].setData(self.x_axis[len(self.x_axis) - len(self.data_buffers[trace]):], self.data_buffers[trace])
+                    break
+
+    def get_universal_plot_refresh_rate(self):
+        return self.UNIVERSAL_PLOT_REFRESH_RATE
+
+    def get_universal_plot_layout(self):
+        return self.layout
+
+
