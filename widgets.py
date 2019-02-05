@@ -813,6 +813,8 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.plot_topic = '20000'
         
         self.DATA_POINTS_TO_DISPLAY = 1000
+        self.MINIMUM_DATA_POINTS = 10
+        self.MAXIMUM_DATA_POINTS = 5000
 
         # Screen refresh rate to update plot (ms)
         # self.UNIVERSAL_PLOT_REFRESH_RATE  = 1 / Desired Frequency (Hz) * 1000
@@ -822,26 +824,64 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.LEFT_X = 0
         self.RIGHT_X = self.DATA_POINTS_TO_DISPLAY
         self.x_axis = np.arange(self.LEFT_X, self.RIGHT_X, self.SPACING)
-        self.buffer_size = int((abs(self.LEFT_X) + abs(self.RIGHT_X))/self.SPACING)
+        self.buffer_size = int((abs(self.LEFT_X) + abs(self.MAXIMUM_DATA_POINTS))/self.SPACING)
 
         # Create Universal Plot Widget
         self.universal_plot_widget = pg.PlotWidget()
         self.universal_plot_widget.plotItem.setMouseEnabled(x=False, y=False)
-        self.universal_plot_widget.plotItem.setClipToView(True)
-        #self.universal_plot_widget.plotItem.setDownsampling(ds=5, auto=False)
         self.universal_plot_widget.setXRange(self.LEFT_X, self.RIGHT_X)
         self.universal_plot_widget.setTitle('Universal Plot')
         self.universal_plot_widget.setLabel('left', 'Value')
         self.universal_plot_widget.setLabel('bottom', 'Data Points')
 
+        self.initialize_LCD_display_slider()
+        
+        self.slider_layout = QtGui.QGridLayout()
+        self.slider_layout.addWidget(self.universal_plot_slider_LCD,0,0,1,1)
+        self.slider_layout.addWidget(self.universal_plot_slider,0,1,1,1)
+
+        # Layout
         self.layout = QtGui.QGridLayout()
-        self.layout.addWidget(self.universal_plot_widget)
+        self.layout.addWidget(self.universal_plot_widget,0,0,1,0)
+        self.layout.addLayout(self.slider_layout,1,0,1,0)
 
         self.initial_check_valid_port()
         self.universal_plot_timer = QtCore.QTimer()
         self.universal_plot_timer.timeout.connect(self.universal_plot_updater)
         self.universal_plot_timer.start(self.get_universal_plot_refresh_rate())
-    
+
+    def initialize_LCD_display_slider(self):
+        """Create variable x-axis windowing for last n amount of data points"""
+
+        # Slider bar and LCD display
+        self.universal_plot_slider_LCD = QtGui.QLCDNumber(self)
+        self.universal_plot_slider_LCD.setFixedSize(70,30)
+        self.universal_plot_slider_LCD.setSegmentStyle(QtGui.QLCDNumber.Flat)
+        self.universal_plot_slider_LCD.display(self.DATA_POINTS_TO_DISPLAY)
+        self.universal_plot_slider = QtGui.QSlider(QtCore.Qt.Horizontal, self)
+        self.universal_plot_slider.setMinimum(self.MINIMUM_DATA_POINTS)
+        self.universal_plot_slider.setMaximum(self.MAXIMUM_DATA_POINTS)
+        self.universal_plot_slider.setValue(self.DATA_POINTS_TO_DISPLAY)
+        self.universal_plot_slider.setTickPosition(QtGui.QSlider.TicksBelow)
+        self.universal_plot_slider.setSingleStep(100)
+
+        # LCD Color palette
+        self.LCD_palette = self.universal_plot_slider_LCD.palette()
+        self.LCD_palette.setColor(self.LCD_palette.Light, QtGui.QColor(120,120,120))
+        self.universal_plot_slider_LCD.setPalette(self.LCD_palette)
+        
+        self.universal_plot_slider.valueChanged.connect(self.update_data_points_to_display)
+
+    def update_data_points_to_display(self):
+        """Adjust x-axis range and LCD display to selected number of points"""
+
+        self.DATA_POINTS_TO_DISPLAY = self.universal_plot_slider.value()
+        self.universal_plot_slider_LCD.display(self.DATA_POINTS_TO_DISPLAY)
+        self.RIGHT_X = self.DATA_POINTS_TO_DISPLAY
+        self.x_axis = np.arange(self.LEFT_X, self.RIGHT_X, self.SPACING)
+        self.universal_plot_widget.setXRange(self.LEFT_X, self.RIGHT_X)
+
+
     def initial_check_valid_port(self):
         """Attempts to establish initial ZMQ socket connection"""
 
@@ -885,7 +925,6 @@ class UniversalPlotWidget(QtGui.QWidget):
         
         # Obtain header information
         self.plot_data = self.plot_data.split(',')
-        print(self.plot_data[3::2][1:])
         self.traces = int(self.plot_data[0])
         self.y_scales = int(self.plot_data[1])
         self.y_axis_left = list(self.plot_data[2].split(':'))
@@ -898,12 +937,18 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.create_plots()
 
     def initialize_data_buffers(self):
-        # Initialize data buffers
+        """Create blank data buffers for each curve"""
+
         for trace in range(self.traces):
             self.data_buffers.append([])
 
     def create_plots(self):
-        # Create plots
+        """Create curve with random RBG color
+
+        Width must be 1 otherwise there will be performance issues 
+        as documented in the pyqtgraph docs
+        """
+
         for trace in range(self.traces):
             new_plot = self.universal_plot_widget.plot()
             color = tuple(np.random.choice(range(256), size=3)) 
@@ -918,16 +963,23 @@ class UniversalPlotWidget(QtGui.QWidget):
                 # Read data from buffer until empty
                 try:
                     self.topic, self.plot_data = self.plot_socket.recv(zmq.NOBLOCK).split()
+                    # Remove plot header information
                     self.plot_data = self.plot_data.split(',')[3::2][1:]
                     for trace in range(self.traces):
+                        # Remove oldest data point if exceeds buffer size for each curve
                         if len(self.data_buffers[trace]) >= self.buffer_size:
                             self.data_buffers[trace].pop(0)
                         self.data_buffers[trace].append(float(self.plot_data[trace]))
-                # No data arrived, buffer empty
+                # No data arrived from socket (buffer is empty) so put data onto plot
                 except zmq.ZMQError, e:
                     if e.errno == zmq.EAGAIN:
                         for trace in range(self.traces):
-                            self.universal_plots[trace].setData(self.x_axis[len(self.x_axis) - len(self.data_buffers[trace]):], self.data_buffers[trace])
+                            # Display entire buffer 
+                            if len(self.data_buffers[trace]) <= self.DATA_POINTS_TO_DISPLAY:
+                                self.universal_plots[trace].setData(self.x_axis[len(self.x_axis) - len(self.data_buffers[trace]):], self.data_buffers[trace])
+                            # Truncate recent data subset depending on number of points to display
+                            else:
+                                self.universal_plots[trace].setData(self.x_axis, self.data_buffers[trace][len(self.data_buffers[trace]) - self.DATA_POINTS_TO_DISPLAY:])
                     break
 
     def get_universal_plot_refresh_rate(self):
