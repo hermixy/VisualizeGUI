@@ -18,7 +18,7 @@ class UniversalPlotServer(object):
         self.plot_socket.bind("tcp://*:6020")
         self.plot_topic = 20000
 
-        self.traces = 1
+        self.traces = 30
 
         # 1 y scale defaults to left side, 2 y scales means both sides
         self.y_scales = 1
@@ -57,7 +57,7 @@ class UniversalPlotServer(object):
                 self.curve_message_data += ','
 
         self.message_data = self.message_header +  self.curve_message_data
-        print(self.message_data)
+        #print(self.message_data)
 
     def server_loop(self):
         self.update_data()

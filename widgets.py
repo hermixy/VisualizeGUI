@@ -788,9 +788,24 @@ class OverlayWidget(QtGui.QWidget):
         return self.crosshair.get_y()
 
 class UniversalPlotWidget(QtGui.QWidget):
+    """Universal realtime plotter for a data stream coming over a ZMQ port
+
+    Features:
+    - Supports many traces with a shared X-axis in a single window, on 1 or 2 
+      separate Y scales
+    - Automatic legends and distinct colors for the different traces
+    - Arbitary data stream rate
+    - Variable x-axis windowing (last n amount of data points)
+
+    Server sends data to widget in string <'str'> format
+    """
+
     def __init__(self, parent=None):
         super(UniversalPlotWidget, self).__init__(parent)
         
+        # Use openGL to render graph for better performance
+        pg.QtGui.QApplication.setGraphicsSystem('opengl')
+
         self.verified = False
         self.DATA_TIMEOUT = 1
         self.SPACING = 1
@@ -801,7 +816,7 @@ class UniversalPlotWidget(QtGui.QWidget):
 
         # Screen refresh rate to update plot (ms)
         # self.UNIVERSAL_PLOT_REFRESH_RATE  = 1 / Desired Frequency (Hz) * 1000
-        self.UNIVERSAL_PLOT_REFRESH_RATE  = 20
+        self.UNIVERSAL_PLOT_REFRESH_RATE  = 7
 
         # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 0
         self.LEFT_X = 0
@@ -812,6 +827,8 @@ class UniversalPlotWidget(QtGui.QWidget):
         # Create Universal Plot Widget
         self.universal_plot_widget = pg.PlotWidget()
         self.universal_plot_widget.plotItem.setMouseEnabled(x=False, y=False)
+        self.universal_plot_widget.plotItem.setClipToView(True)
+        #self.universal_plot_widget.plotItem.setDownsampling(ds=5, auto=False)
         self.universal_plot_widget.setXRange(self.LEFT_X, self.RIGHT_X)
         self.universal_plot_widget.setTitle('Universal Plot')
         self.universal_plot_widget.setLabel('left', 'Value')
@@ -824,11 +841,6 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.universal_plot_timer = QtCore.QTimer()
         self.universal_plot_timer.timeout.connect(self.universal_plot_updater)
         self.universal_plot_timer.start(self.get_universal_plot_refresh_rate())
-        '''
-        self.get_frame_thread = Thread(target=self.read_data, args=())
-        self.get_frame_thread.daemon = True
-        self.get_frame_thread.start()
-        '''
     
     def initial_check_valid_port(self):
         """Attempts to establish initial ZMQ socket connection"""
@@ -866,6 +878,7 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.plot_socket.setsockopt(zmq.SUBSCRIBE, self.plot_topic)
 
     def initialize_plot(self):
+        """Parse header information and create plot buffers"""
 
         # Confirmed valid ZMQ plot settings so can use blocking recv
         topic, self.plot_data = self.plot_socket.recv().split()
@@ -890,22 +903,11 @@ class UniversalPlotWidget(QtGui.QWidget):
             self.data_buffers.append([])
 
     def create_plots(self):
-        alpha = 150
-        self.color_table = {0: (212,240,255, alpha),
-                            1: (248,255,208, alpha),
-                            2: (242,215,255, alpha),
-                            3: (255,232,205, alpha),
-                            4: (255,239,243, alpha),
-                            5: (51,194,255, alpha),
-                            6: (255,146,92, alpha),
-                            7: (32,201,151, alpha),
-                            8: (10,10,124, alpha),
-                            9: (67,24,22, alpha)}
-
         # Create plots
         for trace in range(self.traces):
             new_plot = self.universal_plot_widget.plot()
-            new_plot.setPen(self.color_table[trace], width=1.5)
+            color = tuple(np.random.choice(range(256), size=3)) 
+            new_plot.setPen(color, width=1)
             self.universal_plots.append(new_plot)
     
     def universal_plot_updater(self):
