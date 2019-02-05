@@ -12,6 +12,11 @@ class LCDDisplayWidget(QtGui.QWidget):
         self.LCD = QtGui.QLCDNumber(self)
         self.LCD.setFixedSize(400,250)
         self.slider = QtGui.QSlider(QtCore.Qt.Horizontal, self)
+        self.slider.setMinimum(10)
+        self.slider.setMaximum(200)
+        self.slider.setValue(100)
+        self.slider.setTickPosition(QtGui.QSlider.TicksBelow)
+        self.slider.setSingleStep(5)
 
         self.layout = QtGui.QVBoxLayout()
         self.layout.addWidget(self.LCD)
