@@ -823,8 +823,8 @@ class UniversalPlotWidget(QtGui.QWidget):
         # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 0
         self.LEFT_X = 0
         self.RIGHT_X = self.DATA_POINTS_TO_DISPLAY
-        self.x_axis = np.arange(self.LEFT_X, self.RIGHT_X, self.SPACING)
-        self.buffer_size = int((abs(self.LEFT_X) + abs(self.MAXIMUM_DATA_POINTS))/self.SPACING)
+        self.x_axis = np.arange(self.LEFT_X, self.RIGHT_X + 1, self.SPACING)
+        self.buffer_size = int((abs(self.LEFT_X) + abs(self.MAXIMUM_DATA_POINTS + 1))/self.SPACING)
 
         # Create Universal Plot Widget
         self.universal_plot_widget = pg.PlotWidget()
@@ -878,9 +878,8 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.DATA_POINTS_TO_DISPLAY = self.universal_plot_slider.value()
         self.universal_plot_slider_LCD.display(self.DATA_POINTS_TO_DISPLAY)
         self.RIGHT_X = self.DATA_POINTS_TO_DISPLAY
-        self.x_axis = np.arange(self.LEFT_X, self.RIGHT_X, self.SPACING)
+        self.x_axis = np.arange(self.LEFT_X, self.RIGHT_X + 1, self.SPACING)
         self.universal_plot_widget.setXRange(self.LEFT_X, self.RIGHT_X)
-
 
     def initial_check_valid_port(self):
         """Attempts to establish initial ZMQ socket connection"""
@@ -967,7 +966,7 @@ class UniversalPlotWidget(QtGui.QWidget):
                     self.plot_data = self.plot_data.split(',')[3::2][1:]
                     for trace in range(self.traces):
                         # Remove oldest data point if exceeds buffer size for each curve
-                        if len(self.data_buffers[trace]) >= self.buffer_size:
+                        if len(self.data_buffers[trace]) > self.buffer_size:
                             self.data_buffers[trace].pop(0)
                         self.data_buffers[trace].append(float(self.plot_data[trace]))
                 # No data arrived from socket (buffer is empty) so put data onto plot
@@ -975,11 +974,11 @@ class UniversalPlotWidget(QtGui.QWidget):
                     if e.errno == zmq.EAGAIN:
                         for trace in range(self.traces):
                             # Display entire buffer 
-                            if len(self.data_buffers[trace]) <= self.DATA_POINTS_TO_DISPLAY:
+                            if len(self.data_buffers[trace]) <= self.DATA_POINTS_TO_DISPLAY + 1:
                                 self.universal_plots[trace].setData(self.x_axis[len(self.x_axis) - len(self.data_buffers[trace]):], self.data_buffers[trace])
                             # Truncate recent data subset depending on number of points to display
                             else:
-                                self.universal_plots[trace].setData(self.x_axis, self.data_buffers[trace][len(self.data_buffers[trace]) - self.DATA_POINTS_TO_DISPLAY:])
+                                self.universal_plots[trace].setData(self.x_axis, self.data_buffers[trace][len(self.data_buffers[trace]) - self.DATA_POINTS_TO_DISPLAY-1:])
                     break
 
     def get_universal_plot_refresh_rate(self):
