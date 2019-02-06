@@ -834,8 +834,8 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.universal_plot_widget.plotItem.setMouseEnabled(x=False, y=False)
         self.universal_plot_widget.setXRange(self.LEFT_X, self.RIGHT_X)
         self.universal_plot_widget.setTitle('Universal Plot')
-        self.universal_plot_widget.setLabel('left', 'Value')
-        self.universal_plot_widget.setLabel('bottom', self.plot_units)
+        self.universal_plot_widget.setLabel('left', self.left_y_label, units=self.left_y_units)
+        self.universal_plot_widget.setLabel('bottom', self.x_label, units=self.x_units)
 
         self.initialize_LCD_display_slider()
         
@@ -928,11 +928,17 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.plot_data = self.plot_data.split(',')
         self.traces = int(self.plot_data[0])
         self.y_scales = int(self.plot_data[1])
-        self.y_axis_left = list(self.plot_data[2].split(':'))
-        self.y_axis_right = list(self.plot_data[3].split(':'))
-        self.plot_units = str(self.plot_data[4].replace(':', ' '))
-        self.plot_names = self.plot_data[3::2][1:]
+        self.left_y_plots = list(self.plot_data[2].split(':'))
+        self.right_y_plots = list(self.plot_data[3].split(':'))
+        self.left_y_label = str(self.plot_data[4])
+        self.left_y_units = str(self.plot_data[5])
+        self.right_y_label = str(self.plot_data[6])
+        self.right_y_units = str(self.plot_data[7])
+        self.x_label = str(self.plot_data[8])
+        self.x_units = str(self.plot_data[9])
+        self.plot_labels = list(self.plot_data[8::2][1:])
 
+        # self.plot_data = self.plot_data.split(',')[4::2][1:]
         self.data_buffers = []
         self.universal_plots = []
 
@@ -967,7 +973,7 @@ class UniversalPlotWidget(QtGui.QWidget):
                 try:
                     self.topic, self.plot_data = self.plot_socket.recv(zmq.NOBLOCK).split()
                     # Remove plot header information
-                    self.plot_data = self.plot_data.split(',')[4::2][1:]
+                    self.plot_data = self.plot_data.split(',')[9::2][1:]
                     for trace in range(self.traces):
                         # Remove oldest data point if exceeds buffer size for each curve
                         if len(self.data_buffers[trace]) > self.buffer_size:

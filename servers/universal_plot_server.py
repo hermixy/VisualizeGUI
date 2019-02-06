@@ -21,30 +21,39 @@ class UniversalPlotServer(object):
         self.traces = 30
 
         # 1 y scale defaults to left side, 2 y scales means both sides
-        self.y_scales = 1
+        self.y_scales = 2
 
         # Trace name to place on each y scale separated by :
-        self.y_axis_left = '0:1:2'
-        self.y_axis_right = '3:4'
+        self.left_y_plots = '0:1:2:3:4:5:6:7:8:9:10:11:12:13:14'
+        self.right_y_plots = '15:16:17:18:19:20:21:22:23:24:25:26:27:28:29'
 
-        # Replace spaces with : 
-        # Example: 'Seconds (s)' -> 'Seconds:(s)'
-        self.plot_units = 'Seconds:(s)'
+        self.left_y_label = 'left'
+        self.left_y_units = 'l'
+        self.right_y_label = 'right'
+        self.right_y_units = 'r'
+        self.x_label = 'Points'
+        self.x_units = '#'
 
     def initialize_data_message(self):
         """Construct data packet according to format"""
 
         # Header format:
-        # Number of traces, Number of Y scales, left y plots, right y plots, plot units
+        # [# of traces, # Y scales, left Y plots, right Y plots, left Y label, left Y units,
+        #  right Y label, right Y units, X label, X units]
         
         # Data format:
-        # curve_name1, curve_data1, curve_name2, curve_data2...
+        # [curve_name1, curve_data1, curve_name2, curve_data2, ...]
 
-        self.message_header = "{},{},{},{},{},".format(str(self.traces),
-                                                  str(self.y_scales),
-                                                  str(self.y_axis_left),
-                                                  str(self.y_axis_right),
-                                                  str(self.plot_units))
+        self.message_header = "{},{},{},{},{},{},{},{},{},{},".format(str(self.traces),
+                                                                      str(self.y_scales),
+                                                                      str(self.left_y_plots),
+                                                                      str(self.right_y_plots),
+                                                                      str(self.left_y_label),
+                                                                      str(self.left_y_units),
+                                                                      str(self.right_y_label),
+                                                                      str(self.right_y_units),
+                                                                      str(self.x_label),
+                                                                      str(self.x_units))
         self.curve_data_table = {}
     
     def update_data(self):
@@ -69,7 +78,7 @@ class UniversalPlotServer(object):
                 self.curve_message_data += ','
 
         self.message_data = self.message_header +  self.curve_message_data
-        #print(self.message_data)
+        # print(self.message_data)
 
     def server_loop(self):
         self.update_data()
