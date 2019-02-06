@@ -27,12 +27,24 @@ class UniversalPlotServer(object):
         self.y_axis_left = '0:1:2'
         self.y_axis_right = '3:4'
 
+        # Replace spaces with : 
+        # Example: 'Seconds (s)' -> 'Seconds:(s)'
+        self.plot_units = 'Seconds:(s)'
+
     def initialize_data_message(self):
-        # Number of traces, Number of Y scales, left y plots, right y plots, curve_name1, curve_data1, ...
-        self.message_header = "{},{},{},{},".format(str(self.traces),
+        """Construct data packet according to format"""
+
+        # Header format:
+        # Number of traces, Number of Y scales, left y plots, right y plots, plot units
+        
+        # Data format:
+        # curve_name1, curve_data1, curve_name2, curve_data2...
+
+        self.message_header = "{},{},{},{},{},".format(str(self.traces),
                                                   str(self.y_scales),
                                                   str(self.y_axis_left),
-                                                  str(self.y_axis_right))
+                                                  str(self.y_axis_right),
+                                                  str(self.plot_units))
         self.curve_data_table = {}
     
     def update_data(self):

@@ -828,11 +828,14 @@ class UniversalPlotWidget(QtGui.QWidget):
 
         # Create Universal Plot Widget
         self.universal_plot_widget = pg.PlotWidget()
+        self.initial_check_valid_port()
+
+        # Plot settings
         self.universal_plot_widget.plotItem.setMouseEnabled(x=False, y=False)
         self.universal_plot_widget.setXRange(self.LEFT_X, self.RIGHT_X)
         self.universal_plot_widget.setTitle('Universal Plot')
         self.universal_plot_widget.setLabel('left', 'Value')
-        self.universal_plot_widget.setLabel('bottom', 'Data Points')
+        self.universal_plot_widget.setLabel('bottom', self.plot_units)
 
         self.initialize_LCD_display_slider()
         
@@ -845,7 +848,6 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.layout.addWidget(self.universal_plot_widget,0,0,1,0)
         self.layout.addLayout(self.slider_layout,1,0,1,0)
 
-        self.initial_check_valid_port()
         self.universal_plot_timer = QtCore.QTimer()
         self.universal_plot_timer.timeout.connect(self.universal_plot_updater)
         self.universal_plot_timer.start(self.get_universal_plot_refresh_rate())
@@ -928,6 +930,8 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.y_scales = int(self.plot_data[1])
         self.y_axis_left = list(self.plot_data[2].split(':'))
         self.y_axis_right = list(self.plot_data[3].split(':'))
+        self.plot_units = str(self.plot_data[4].replace(':', ' '))
+        self.plot_names = self.plot_data[3::2][1:]
 
         self.data_buffers = []
         self.universal_plots = []
@@ -963,7 +967,7 @@ class UniversalPlotWidget(QtGui.QWidget):
                 try:
                     self.topic, self.plot_data = self.plot_socket.recv(zmq.NOBLOCK).split()
                     # Remove plot header information
-                    self.plot_data = self.plot_data.split(',')[3::2][1:]
+                    self.plot_data = self.plot_data.split(',')[4::2][1:]
                     for trace in range(self.traces):
                         # Remove oldest data point if exceeds buffer size for each curve
                         if len(self.data_buffers[trace]) > self.buffer_size:
