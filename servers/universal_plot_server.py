@@ -18,14 +18,16 @@ class UniversalPlotServer(object):
         self.plot_socket.bind("tcp://*:6020")
         self.plot_topic = 20000
 
-        self.traces = 30
+        self.traces = 6
 
         # 1 y scale defaults to left side, 2 y scales means both sides
         self.y_scales = 2
 
         # Trace name to place on each y scale separated by :
-        self.left_y_plots = '0:1:2:3:4:5:6:7:8:9:10:11:12:13:14'
-        self.right_y_plots = '15:16:17:18:19:20:21:22:23:24:25:26:27:28:29'
+        # self.left_y_plots = '0:1:2:3:4:5:6:7:8:9:10:11:12:13:14'
+        # self.right_y_plots = '15:16:17:18:19:20:21:22:23:24:25:26:27:28:29'
+        self.left_y_plots = '0:2:4'
+        self.right_y_plots = '1:3:5'
 
         self.left_y_label = 'left'
         self.left_y_units = 'l'
@@ -64,6 +66,7 @@ class UniversalPlotServer(object):
         high = 100
         diff = 0
         for trace in range(self.traces):
+
             self.curve_data_table['trace' + str(trace)] = random.randint(low + diff, high + diff)
             diff += 100
         

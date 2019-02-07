@@ -19,6 +19,7 @@ VideoStreamWidget: Video player capable of loading in media and opening network 
     VideoWindowWidget: Main container for video frame
     OverlayWidget: Invisible overlay container on top of video frame
     CrosshairWidget: Invisbile plot with crosshair on top of overlay
+UniversalPlotWidget: Universal realtime plotter for a data stream coming over a ZMQ port
 """
 
 class ZMQPlotWidget(QtGui.QWidget):
@@ -824,7 +825,7 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.LEFT_X = 0
         self.RIGHT_X = self.DATA_POINTS_TO_DISPLAY
         self.x_axis = np.arange(self.LEFT_X, self.RIGHT_X + 1, self.SPACING)
-        self.buffer_size = int((abs(self.LEFT_X) + abs(self.MAXIMUM_DATA_POINTS + 1))/self.SPACING)
+        self.buffer_size = int((abs(self.LEFT_X) + abs(self.MAXIMUM_DATA_POINTS) + 1)/self.SPACING)
 
         # Create Universal Plot Widget
         self.universal_plot_widget = pg.PlotWidget()
@@ -938,7 +939,6 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.x_units = str(self.plot_data[9])
         self.plot_labels = list(self.plot_data[8::2][1:])
 
-        # self.plot_data = self.plot_data.split(',')[4::2][1:]
         self.data_buffers = []
         self.universal_plots = []
 
@@ -958,12 +958,42 @@ class UniversalPlotWidget(QtGui.QWidget):
         as documented in the pyqtgraph docs
         """
 
+        self.create_right_axis()
+
         for trace in range(self.traces):
-            new_plot = self.universal_plot_widget.plot()
             color = tuple(np.random.choice(range(256), size=3)) 
+            if str(trace) in self.left_y_plots or self.y_scales == 1:
+                new_plot = self.universal_plot_widget.plot()
+            elif str(trace) in self.right_y_plots and self.y_scales == 2:
+                new_plot = pg.PlotDataItem()
+                self.right_axis.addItem(new_plot)
             new_plot.setPen(color, width=1)
             self.universal_plots.append(new_plot)
+
+    def create_right_axis(self):
+        """Initialize right axis viewbox and link to left coordinate system"""
+
+        if self.y_scales == 2:
+            # Enables right axis
+            self.universal_plot_widget.setLabel('right', self.right_y_label, units=self.right_y_units)
+            # Create a new ViewBox for the right axis and link to left coordinate system
+            self.right_axis = pg.ViewBox()
+            # Add all plots on right axis
+            self.universal_plot_widget.plotItem.scene().addItem(self.right_axis)
+            self.universal_plot_widget.plotItem.getAxis('right').linkToView(self.right_axis)
+            # Connect right axis plots to same x axis
+            self.right_axis.setXLink(self.universal_plot_widget.plotItem)
+            self.update_views()
+            # Adjust plot if view changes
+            self.universal_plot_widget.plotItem.vb.sigResized.connect(self.update_views)
     
+    def update_views(self):
+        """View has resized so update auxiliary views to match"""
+
+        # Re-update linked axes
+        self.right_axis.setGeometry(self.universal_plot_widget.plotItem.vb.sceneBoundingRect())
+        self.right_axis.linkedViewChanged(self.universal_plot_widget.plotItem.vb, self.right_axis.XAxis)
+
     def universal_plot_updater(self):
         """Reads data point from socket and updates plot buffers"""
 
