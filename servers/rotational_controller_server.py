@@ -4,6 +4,8 @@ import random
 import serial
 import sys
 
+"""rotational_controller_server.py"""
+
 ser = serial.Serial(sys.argv[1])
 ser.baudrate = 57600
 time.sleep(1)

@@ -18,10 +18,10 @@ Controls rotational controller with precise movement velocity,
 acceleration, and positional accuracy. Ensure rotational controller is 
 connected. rotational.ini is the configuraiton settings file.
 
-Run servers: pubsub_server2.py for parameter/position changes (OPTIONAL)
-             reqrep_server1.py for ZMQ Plot (OPTIONAL)
-             reqrep_server2.py for change ZMQ Plot ability (OPTIONAL)
-             server1.py for rotational controller (REQUIRED) (switch for pubsub_server1.py)
+Run servers: rotational_parameter_position_server.py for parameter/position changes (OPTIONAL)
+             rotational_plot_server.py for ZMQ Plot (OPTIONAL)
+             rotational_plot_server_alt.py for change ZMQ Plot ability (OPTIONAL)
+             rotational_controller_server.py for rotational controller (REQUIRED) (switch for rotational_parameter_position_server_alt.py)
 """
 
 # =====================================================================
