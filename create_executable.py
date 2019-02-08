@@ -5,7 +5,7 @@
 #
 # Note: Use use clean.py before usage to ensure prior executables are removed
 # Usage: python create_executable.py -f <file.py>
-# Manual: python pyinstaller-script.py --onefile --windowed <file.py>
+# Manual: python pyinstaller_script.py --onefile --windowed <file.py>
 
 from os import system
 import argparse
@@ -17,5 +17,5 @@ from pkg_resources import load_entry_point
 ap = argparse.ArgumentParser()
 ap.add_argument("-f", "--file", required=True, help="File name to convert into executable")
 args = vars(ap.parse_args())
-system('python pyinstaller-script.py --onefile --windowed ' + args['file'])
+system('python pyinstaller_script.py --onefile --windowed ' + args['file'])
 
