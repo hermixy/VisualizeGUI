@@ -9,6 +9,9 @@
 ## Crosshair Plot
 ![](../doc/crosshair_plot_example.gif)
 
+## Multiple Plot Axis
+![](../doc/multiple_plot_axis_example.gif)
+
 ## LCD Display Slider
 ![](../doc/LCD_display_slider_example.gif)
 
