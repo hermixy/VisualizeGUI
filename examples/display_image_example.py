@@ -1,13 +1,17 @@
 from PyQt4 import QtGui, QtCore
 import sys
+sys.path.append('../')
+from utility import decode_image_from_base64, placeholder_image
 
 """Display Image Widget"""
 
 class DisplayImageWidget(QtGui.QWidget):
     def __init__(self, parent=None):
         super (DisplayImageWidget, self).__init__(parent)
-        
-        self.image = QtGui.QPixmap("../doc/placeholder5.PNG")
+       
+        self.placeholder = decode_image_from_base64(placeholder_image)
+        self.placeholder = QtGui.QImage(self.placeholder, 400, 400, QtGui.QImage.Format_RGB888).rgbSwapped()
+        self.image = QtGui.QPixmap.fromImage(self.placeholder)
         self.label = QtGui.QLabel(self)
         self.label.setPixmap(self.image)
 

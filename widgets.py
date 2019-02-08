@@ -1,4 +1,5 @@
 from PyQt4 import QtCore, QtGui
+from utility import decode_image_from_base64, placeholder_image
 import imutils
 import pyqtgraph as pg
 import random
@@ -468,7 +469,6 @@ class VideoWindowWidget(QtGui.QWidget):
         
         # Overlay and plot difference so translate by offset
         self.OFFSET = 9
-        self.placeholder_image_file = 'doc/placeholder5.PNG'
         self.video_filter_formats = self.tr("Video files(*.mp4 *.gif *.mov *.flv *.avi *.wmv)")
 
         self.FREQUENCY = .002
@@ -496,8 +496,8 @@ class VideoWindowWidget(QtGui.QWidget):
     def init_placeholder_image(self):
         """Set placeholder image when video is stopped"""
 
-        self.placeholder_image = cv2.imread(self.placeholder_image_file)
-        
+        self.placeholder_image = decode_image_from_base64(placeholder_image)
+
         # Maintain aspect ratio
         #self.placeholder_image = imutils.resize(self.placeholder_image, width=self.MIN_WINDOW_WIDTH)
         self.placeholder_image = cv2.resize(self.placeholder_image, (self.MIN_WINDOW_WIDTH, self.MIN_WINDOW_HEIGHT))
