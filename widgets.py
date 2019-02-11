@@ -1,5 +1,6 @@
 from PyQt4 import QtCore, QtGui
 from utility import decode_image_from_base64, placeholder_image
+import queue
 import imutils
 import pyqtgraph as pg
 import random
@@ -804,12 +805,28 @@ class UniversalPlotWidget(QtGui.QWidget):
     def __init__(self, parent=None):
         super(UniversalPlotWidget, self).__init__(parent)
         
+        self.style_setting_valid = "border-radius: 6px; padding:5px; background-color: #5fba7d"
+        self.style_setting_invalid  = "border-radius: 6px; padding:5px; background-color: #f78380"
+
         # Use openGL to render graph for better performance
         pg.QtGui.QApplication.setGraphicsSystem('opengl')
+        
+        self.port_status_label = QtGui.QLabel('Port Status')
+        self.connected_status = QtGui.QLabel('Connected')
+        self.connected_status.setAlignment(QtCore.Qt.AlignCenter)
+        self.port_settings_button = QtGui.QPushButton("Port Settings")
+        self.port_settings_button.clicked.connect(self.change_universal_port_settings_button)
+        
+        self.axis_queue = queue.Queue()
+        # Duration for popup to verify port settings in s
+        self.TIME_TO_VERIFY_SETTINGS = 1.25
 
         self.verified = False
+        self.not_locked = True
         self.DATA_TIMEOUT = 1
         self.SPACING = 1
+
+        # Default plot port settings
         self.plot_address = 'tcp://192.168.1.143:6020'
         self.plot_topic = '20000'
         
@@ -826,7 +843,7 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.RIGHT_X = self.DATA_POINTS_TO_DISPLAY
         self.x_axis = np.arange(self.LEFT_X, self.RIGHT_X + 1, self.SPACING)
         self.buffer_size = int((abs(self.LEFT_X) + abs(self.MAXIMUM_DATA_POINTS) + 1)/self.SPACING)
-
+            
         # Create Universal Plot Widget
         self.universal_plot_widget = pg.PlotWidget()
         self.initial_check_valid_port()
@@ -835,19 +852,23 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.universal_plot_widget.plotItem.setMouseEnabled(x=False, y=False)
         self.universal_plot_widget.setXRange(self.LEFT_X, self.RIGHT_X)
         self.universal_plot_widget.setTitle('Universal Plot')
-        self.universal_plot_widget.setLabel('left', self.left_y_label, units=self.left_y_units)
-        self.universal_plot_widget.setLabel('bottom', self.x_label, units=self.x_units)
 
         self.initialize_LCD_display_slider()
+
+        self.connection_layout = QtGui.QGridLayout()
+        self.connection_layout.addWidget(self.port_status_label,0,0,1,1)
+        self.connection_layout.addWidget(self.connected_status,0,1,1,2)
+        self.connection_layout.addWidget(self.port_settings_button,0,3,1,4)
         
         self.slider_layout = QtGui.QGridLayout()
         self.slider_layout.addWidget(self.universal_plot_slider_LCD,0,0,1,1)
         self.slider_layout.addWidget(self.universal_plot_slider,0,1,1,1)
 
-        # Layout
+        # Main Layout
         self.layout = QtGui.QGridLayout()
-        self.layout.addWidget(self.universal_plot_widget,0,0,1,0)
-        self.layout.addLayout(self.slider_layout,1,0,1,0)
+        self.layout.addLayout(self.connection_layout, 0,0,1,0)
+        self.layout.addWidget(self.universal_plot_widget,1,0,1,0)
+        self.layout.addLayout(self.slider_layout,2,0,1,0)
 
         self.universal_plot_timer = QtCore.QTimer()
         self.universal_plot_timer.timeout.connect(self.universal_plot_updater)
@@ -900,6 +921,7 @@ class UniversalPlotWidget(QtGui.QWidget):
                     self.update_universal_plot_address(self.plot_address, self.plot_topic)
                     self.initialize_plot()
                     self.verified = True
+                    self.set_universal_plot_connected_status(True)
                     return
                 except zmq.ZMQError, e:
                     # No data arrived
@@ -908,10 +930,13 @@ class UniversalPlotWidget(QtGui.QWidget):
         # Invalid argument
         except zmq.ZMQError, e:
             self.verified = False
+        self.set_universal_plot_connected_status(False)
 
     def update_universal_plot_address(self, address, topic):
         """Sets ZMQ socket connection with given address and topic"""
-
+        print('update')
+        print(self.plot_address, self.plot_topic) 
+        print(address, topic)
         self.plot_address = address 
         self.plot_topic = topic
         self.plot_context = zmq.Context()
@@ -921,7 +946,7 @@ class UniversalPlotWidget(QtGui.QWidget):
 
     def initialize_plot(self):
         """Parse header information and create plot buffers"""
-
+        
         # Confirmed valid ZMQ plot settings so can use blocking recv
         topic, self.plot_data = self.plot_socket.recv().split()
         
@@ -938,13 +963,19 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.x_label = str(self.plot_data[8])
         self.x_units = str(self.plot_data[9])
         self.plot_labels = list(self.plot_data[8::2][1:])
+        
+        print('try set label')
+    
+        '''
+        '''
 
         self.data_buffers = []
         self.universal_plots = []
 
         self.initialize_data_buffers()
         self.create_plots()
-
+    
+ 
     def initialize_data_buffers(self):
         """Create blank data buffers for each curve"""
 
@@ -957,7 +988,7 @@ class UniversalPlotWidget(QtGui.QWidget):
         Width must be 1 otherwise there will be performance issues 
         as documented in the pyqtgraph docs
         """
-
+        print('create plots')
         self.create_right_axis()
 
         for trace in range(self.traces):
@@ -969,13 +1000,24 @@ class UniversalPlotWidget(QtGui.QWidget):
                 self.right_axis.addItem(new_plot)
             new_plot.setPen(color, width=1)
             self.universal_plots.append(new_plot)
+        
+        self.load_axis_queue()
+
+    def load_axis_queue(self):
+        self.axis_queue.put('left')
+        self.axis_queue.put(self.left_y_label)
+        self.axis_queue.put(self.left_y_units)
+        self.axis_queue.put('bottom')
+        self.axis_queue.put(self.x_label)
+        self.axis_queue.put(self.x_units)
+        self.axis_queue.put('right')
+        self.axis_queue.put(self.right_y_label)
+        self.axis_queue.put(self.right_y_units)
 
     def create_right_axis(self):
         """Initialize right axis viewbox and link to left coordinate system"""
 
         if self.y_scales == 2:
-            # Enables right axis
-            self.universal_plot_widget.setLabel('right', self.right_y_label, units=self.right_y_units)
             # Create a new ViewBox for the right axis and link to left coordinate system
             self.right_axis = pg.ViewBox()
             # Add all plots on right axis
@@ -997,7 +1039,7 @@ class UniversalPlotWidget(QtGui.QWidget):
     def universal_plot_updater(self):
         """Reads data point from socket and updates plot buffers"""
 
-        if self.verified:
+        if self.verified and self.not_locked:
             while(True):
                 # Read data from buffer until empty
                 try:
@@ -1021,10 +1063,143 @@ class UniversalPlotWidget(QtGui.QWidget):
                                 self.universal_plots[trace].setData(self.x_axis, self.data_buffers[trace][len(self.data_buffers[trace]) - self.DATA_POINTS_TO_DISPLAY-1:])
                     break
 
+    def change_universal_port_settings_button(self):
+        """Change ZMQ port setting"""
+        self.port_popup = UniversalPlotPortSettingPopUpWidget("Port Settings", self)
+        self.update_axis()
+        print('quit settings button')
+
+    def update_axis(self):
+        while(not self.port_popup.visibleRegion().isEmpty()):
+            print('is open')
+            pg.QtGui.QApplication.processEvents()
+
+        # Spin for extra time for the situation where it checks invalid input
+        # Additional time comes from time used to verify input settings function
+        print('closed')
+        time_end = time.time() + self.TIME_TO_VERIFY_SETTINGS
+        while time.time() < time_end:
+            pg.QtGui.QApplication.processEvents()
+        print('stall done')
+        print(self.axis_queue.qsize())
+        
+        self.not_locked = False 
+        if self.axis_queue.qsize() > 0:
+            # left axis
+            self.universal_plot_widget.setLabel(self.axis_queue.get(), self.axis_queue.get(), units=self.axis_queue.get())
+            # bottom axis
+            self.universal_plot_widget.setLabel(self.axis_queue.get(), self.axis_queue.get(), units=self.axis_queue.get())
+            if self.y_scales == 2:
+                # Enables right axis
+                self.universal_plot_widget.setLabel(self.axis_queue.get(), self.axis_queue.get(), units=self.axis_queue.get())
+        print(self.axis_queue.qsize())
+
+        self.universal_plot_timer.start(self.get_universal_plot_refresh_rate())
+        self.not_locked = True
+
     def get_universal_plot_refresh_rate(self):
         return self.UNIVERSAL_PLOT_REFRESH_RATE
 
     def get_universal_plot_layout(self):
         return self.layout
 
+    def get_universal_plot_topic(self):
+        return self.plot_topic
+
+    def get_universal_plot_address(self):
+        return self.plot_address
+
+    def set_universal_plot_connected_status(self, value):
+        if value:
+            self.connected_status.setStyleSheet(self.style_setting_valid) 
+            self.connected_status.setText('Connected')
+            self.verified = True
+        else: 
+            self.connected_status.setStyleSheet(self.style_setting_invalid)
+            self.connected_status.setText('Not Connected')
+            self.verified = False
+
+# =====================================================================
+# Port connection popup widget for Universal Plot Widget
+# =====================================================================
+
+class UniversalPlotPortSettingPopUpWidget(QtGui.QWidget):
+    """Widget to control ZMQ port connection settings"""
+
+    def __init__(self, window_title, plot_object, parent=None):
+        super(UniversalPlotPortSettingPopUpWidget, self).__init__(parent)
+        
+        self.plot_object = plot_object
+
+        self.POPUP_WIDTH = 240
+        self.POPUP_HEIGHT = 140
+        self.setFixedSize(self.POPUP_WIDTH, self.POPUP_HEIGHT)
+
+        self.setWindowTitle(window_title)
+        
+        # Data wait time in seconds
+        self.DATA_TIMEOUT = 1
+
+        # Position
+        self.popup_layout = QtGui.QFormLayout()
+        self.TCPAddress = QtGui.QLineEdit()
+        self.TCPAddress.setMaxLength(15)
+        self.TCPPort = QtGui.QLineEdit()
+        self.TCPPort.setValidator(QtGui.QIntValidator())
+        self.TCPTopic = QtGui.QLineEdit()
+        self.TCPTopic.setValidator(QtGui.QIntValidator())
+        self.button_layout = QtGui.QHBoxLayout()
+        self.connect_button = QtGui.QPushButton('Connect')
+        self.connect_button.setStyleSheet('background-color: #3CB371')
+        self.connect_button.clicked.connect(self.popup_save_button)
+        self.stop_button = QtGui.QPushButton('Cancel')
+        self.stop_button.clicked.connect(self.popup_cancel_button)
+        self.button_layout.addWidget(self.connect_button)
+        self.button_layout.addWidget(self.stop_button)
+
+        self.popup_layout.addRow("TCP Address", self.TCPAddress)
+        self.popup_layout.addRow("Port", self.TCPPort)
+        self.popup_layout.addRow("Topic", self.TCPTopic)
+        self.popup_layout.addRow(self.button_layout)
+        self.setLayout(self.popup_layout) 
+        self.setWindowModality(QtCore.Qt.ApplicationModal)
+        self.show()
+    
+    def popup_save_button(self):
+        """Parses position input and sets port if validated"""
+
+        address = str(self.TCPAddress.text())
+        port = str(self.TCPPort.text())
+        topic = str(self.TCPTopic.text())
+        Thread(target=self.popup_check_valid_port, args=(address,port,topic)).start()
+        self.close()
+        
+    def popup_cancel_button(self):
+        """Cancel position port change operation"""
+
+        self.close()
+
+    def popup_check_valid_port(self, address, port, topic):
+        """Opens a ZMQ socket connection and checks if valid port"""
+
+        if address and port and topic:
+            new_address = "tcp://" + address + ":" + port
+            if new_address != self.plot_object.get_universal_plot_address() or self.plot_object.get_universal_plot_topic() != topic:
+                context = zmq.Context()
+                socket = context.socket(zmq.SUB)
+                socket.connect(new_address)
+                socket.setsockopt(zmq.SUBSCRIBE, topic)
+                # Check for valid data within time interval in seconds (s)
+                time_end = time.time() + self.DATA_TIMEOUT
+                while time.time() < time_end:
+                    try:
+                        t, data = socket.recv(zmq.NOBLOCK).split()
+                        self.plot_object.update_universal_plot_address(new_address, topic)
+                        self.plot_object.initialize_plot()
+                        self.plot_object.set_universal_plot_connected_status(True)
+                        return
+                    except zmq.ZMQError, e:
+                        # No data arrived
+                        if e.errno == zmq.EAGAIN:
+                            pass
 
