@@ -848,6 +848,7 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.layout = QtGui.QGridLayout()
         self.layout.addWidget(self.universal_plot_widget,0,0,1,0)
         self.layout.addLayout(self.slider_layout,1,0,1,0)
+        self.layout.addLayout(self.plot_color_label_layout,2,0,1,0)
 
         self.universal_plot_timer = QtCore.QTimer()
         self.universal_plot_timer.timeout.connect(self.universal_plot_updater)
@@ -944,6 +945,7 @@ class UniversalPlotWidget(QtGui.QWidget):
 
         self.initialize_data_buffers()
         self.create_plots()
+        self.initialize_plot_labels()
 
     def initialize_data_buffers(self):
         """Create blank data buffers for each curve"""
@@ -959,16 +961,50 @@ class UniversalPlotWidget(QtGui.QWidget):
         """
 
         self.create_right_axis()
+        self.plot_color_table = {}
+        self.color_transparency = 140
 
         for trace in range(self.traces):
-            color = tuple(np.random.choice(range(256), size=3)) 
+            color = list(np.random.choice(range(256), size=3))
+            color.append(self.color_transparency)
+            color = tuple(color)
+            self.plot_color_table[trace] = color
             if str(trace) in self.left_y_plots or self.y_scales == 1:
                 new_plot = self.universal_plot_widget.plot()
             elif str(trace) in self.right_y_plots and self.y_scales == 2:
                 new_plot = pg.PlotDataItem()
                 self.right_axis.addItem(new_plot)
-            new_plot.setPen(color, width=1)
+            new_plot.setPen(self.plot_color_table[trace], width=1)
             self.universal_plots.append(new_plot)
+
+    def initialize_plot_labels(self):
+        """Create color plot labels"""
+
+        self.plot_color_label_layout = QtGui.QGridLayout()
+
+        self.left_y_plots_layout = QtGui.QHBoxLayout()
+        self.left_y_color_label = QtGui.QLabel('Left Plots  ')
+        self.left_y_plots_layout.addWidget(self.left_y_color_label)
+
+        self.right_y_plots_layout = QtGui.QHBoxLayout()
+        self.right_y_color_label = QtGui.QLabel('Right Plots')
+        self.right_y_plots_layout.addWidget(self.right_y_color_label)
+
+        # Create plots with distinct color
+        for plot in range(self.traces):
+            label = QtGui.QLabel(self.plot_labels[int(plot)])
+            label.setAlignment(QtCore.Qt.AlignCenter)
+            style = "border-radius: 6%; padding:5px; background-color: rgba{};".format(self.plot_color_table[int(plot)])
+            label.setStyleSheet(style)
+            if str(plot) in self.left_y_plots:
+                self.left_y_plots_layout.addWidget(label)
+            elif str(plot) in self.right_y_plots and self.y_scales == 2:
+                self.right_y_plots_layout.addWidget(label)
+
+        # Push left and right layouts into main layout
+        self.plot_color_label_layout.addLayout(self.left_y_plots_layout,0,0,1,1)
+        if self.y_scales == 2:
+            self.plot_color_label_layout.addLayout(self.right_y_plots_layout,1,0,1,1)
 
     def create_right_axis(self):
         """Initialize right axis viewbox and link to left coordinate system"""
