@@ -952,20 +952,6 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.bottom_units= str(self.plot_data['units']['bottom'])
         self.plot_labels = [label for label in self.plot_data['data']]
 
-        print(self.traces)
-        print(self.scales)
-        print(self.right_plots)
-        print(self.left_plots)
-        print(self.right_label)
-        print(self.left_label)
-        print(self.bottom_label)
-        print(self.right_units)
-        print(self.left_units)
-        print(self.bottom_units)
-        print(self.plot_labels)
-        exit(1)
-
-
         self.data_buffers = []
         self.universal_plots = []
 
@@ -995,42 +981,13 @@ class UniversalPlotWidget(QtGui.QWidget):
             color.append(self.color_transparency)
             color = tuple(color)
             self.plot_color_table[trace] = color
-            if str(trace) in self.left_plots or self.scales == 1:
+            if trace in self.left_plots or self.scales == 1:
                 new_plot = self.universal_plot_widget.plot()
-            elif str(trace) in self.right_plots and self.scales == 2:
+            elif trace in self.right_plots and self.scales == 2:
                 new_plot = pg.PlotDataItem()
                 self.right_axis.addItem(new_plot)
             new_plot.setPen(self.plot_color_table[trace], width=1)
             self.universal_plots.append(new_plot)
-
-    def initialize_plot_labels(self):
-        """Create color plot labels"""
-
-        self.plot_color_label_layout = QtGui.QGridLayout()
-
-        self.left_y_plots_layout = QtGui.QHBoxLayout()
-        self.left_y_color_label = QtGui.QLabel('Left Plots  ')
-        self.left_y_plots_layout.addWidget(self.left_y_color_label)
-
-        self.right_y_plots_layout = QtGui.QHBoxLayout()
-        self.right_y_color_label = QtGui.QLabel('Right Plots')
-        self.right_y_plots_layout.addWidget(self.right_y_color_label)
-
-        # Create plots with distinct color
-        for plot in range(self.traces):
-            label = QtGui.QLabel(self.plot_labels[int(plot)])
-            label.setAlignment(QtCore.Qt.AlignCenter)
-            style = "border-radius: 6%; padding:5px; background-color: rgba{};".format(self.plot_color_table[int(plot)])
-            label.setStyleSheet(style)
-            if str(plot) in self.left_plots:
-                self.left_y_plots_layout.addWidget(label)
-            elif str(plot) in self.right_plots and self.scales == 2:
-                self.right_y_plots_layout.addWidget(label)
-
-        # Push left and right layouts into main layout
-        self.plot_color_label_layout.addLayout(self.left_y_plots_layout,0,0,1,1)
-        if self.scales == 2:
-            self.plot_color_label_layout.addLayout(self.right_y_plots_layout,1,0,1,1)
 
     def create_right_axis(self):
         """Initialize right axis viewbox and link to left coordinate system"""
@@ -1049,6 +1006,34 @@ class UniversalPlotWidget(QtGui.QWidget):
             # Adjust plot if view changes
             self.universal_plot_widget.plotItem.vb.sigResized.connect(self.update_views)
     
+    def initialize_plot_labels(self):
+        """Create color plot labels"""
+        self.plot_color_label_layout = QtGui.QGridLayout()
+
+        self.left_plots_layout = QtGui.QHBoxLayout()
+        self.left_color_labels = QtGui.QLabel('Left Plots  ')
+        self.left_plots_layout.addWidget(self.left_color_labels)
+
+        self.right_plots_layout = QtGui.QHBoxLayout()
+        self.right_color_labels = QtGui.QLabel('Right Plots')
+        self.right_plots_layout.addWidget(self.right_color_labels)
+
+        # Create plots with distinct color
+        for plot in range(self.traces):
+            label = QtGui.QLabel(self.plot_labels[int(plot)])
+            label.setAlignment(QtCore.Qt.AlignCenter)
+            style = "border-radius: 6%; padding:5px; background-color: rgba{};".format(self.plot_color_table[int(plot)])
+            label.setStyleSheet(style)
+            if plot in self.left_plots:
+                self.left_plots_layout.addWidget(label)
+            elif plot in self.right_plots and self.scales == 2:
+                self.right_plots_layout.addWidget(label)
+        
+        # Push left and right layouts into main layout
+        self.plot_color_label_layout.addLayout(self.left_plots_layout,0,0,1,1)
+        if self.scales == 2:
+            self.plot_color_label_layout.addLayout(self.right_plots_layout,1,0,1,1)
+        
     def update_views(self):
         """View has resized so update auxiliary views to match"""
 
@@ -1063,14 +1048,14 @@ class UniversalPlotWidget(QtGui.QWidget):
             while(True):
                 # Read data from buffer until empty
                 try:
-                    self.topic, self.plot_data = self.plot_socket.recv(zmq.NOBLOCK).split()
+                    self.topic, self.plot_data = self.deserialize(self.plot_socket.recv(zmq.NOBLOCK))
                     # Remove plot header information
-                    self.plot_data = self.plot_data.split(',')[9::2][1:]
+                    self.plot_trace_data = [self.plot_data['data'][label] for label in self.plot_data['data']]
                     for trace in range(self.traces):
                         # Remove oldest data point if exceeds buffer size for each curve
                         if len(self.data_buffers[trace]) > self.buffer_size:
                             self.data_buffers[trace].pop(0)
-                        self.data_buffers[trace].append(float(self.plot_data[trace]))
+                        self.data_buffers[trace].append(float(self.plot_trace_data[trace]))
                 # No data arrived from socket (buffer is empty) so put data onto plot
                 except zmq.ZMQError, e:
                     if e.errno == zmq.EAGAIN:
