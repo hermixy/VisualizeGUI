@@ -2,6 +2,7 @@ from PyQt4 import QtCore, QtGui
 from utility import decode_image_from_base64, placeholder_image
 import imutils
 import pyqtgraph as pg
+import json
 import random
 import zmq
 import numpy as np
@@ -835,8 +836,8 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.universal_plot_widget.plotItem.setMouseEnabled(x=False, y=False)
         self.universal_plot_widget.setXRange(self.LEFT_X, self.RIGHT_X)
         self.universal_plot_widget.setTitle('Universal Plot')
-        self.universal_plot_widget.setLabel('left', self.left_y_label, units=self.left_y_units)
-        self.universal_plot_widget.setLabel('bottom', self.x_label, units=self.x_units)
+        self.universal_plot_widget.setLabel('left', self.left_label, units=self.left_units)
+        self.universal_plot_widget.setLabel('bottom', self.bottom_label, units=self.bottom_units)
 
         self.initialize_LCD_display_slider()
         
@@ -897,7 +898,7 @@ class UniversalPlotWidget(QtGui.QWidget):
             time_end = time.time() + self.DATA_TIMEOUT
             while time.time() < time_end:
                 try:
-                    topic, data = socket.recv(zmq.NOBLOCK).split()
+                    topic, data = self.deserialize(socket.recv(zmq.NOBLOCK))
                     self.update_universal_plot_address(self.plot_address, self.plot_topic)
                     self.initialize_plot()
                     self.verified = True
@@ -909,6 +910,15 @@ class UniversalPlotWidget(QtGui.QWidget):
         # Invalid argument
         except zmq.ZMQError, e:
             self.verified = False
+    
+    def deserialize(self, data):
+        raw_json = data.find('{')
+        topic = data[0:raw_json].strip()
+        msg = json.loads(data[raw_json:])
+        return topic, msg
+
+    def print_data(self, data):
+        print(json.dumps(data, indent=4, sort_keys=True))
 
     def update_universal_plot_address(self, address, topic):
         """Sets ZMQ socket connection with given address and topic"""
@@ -922,23 +932,39 @@ class UniversalPlotWidget(QtGui.QWidget):
 
     def initialize_plot(self):
         """Parse header information and create plot buffers"""
-
+        
         # Confirmed valid ZMQ plot settings so can use blocking recv
-        topic, self.plot_data = self.plot_socket.recv().split()
+        topic, self.plot_data = self.deserialize(self.plot_socket.recv())
         
         # Obtain header information
-        self.plot_data = self.plot_data.split(',')
-        self.traces = int(self.plot_data[0])
-        self.y_scales = int(self.plot_data[1])
-        self.left_y_plots = list(self.plot_data[2].split(':'))
-        self.right_y_plots = list(self.plot_data[3].split(':'))
-        self.left_y_label = str(self.plot_data[4])
-        self.left_y_units = str(self.plot_data[5])
-        self.right_y_label = str(self.plot_data[6])
-        self.right_y_units = str(self.plot_data[7])
-        self.x_label = str(self.plot_data[8])
-        self.x_units = str(self.plot_data[9])
-        self.plot_labels = list(self.plot_data[8::2][1:])
+        self.traces = int(self.plot_data['traces'])
+        self.scales = int(self.plot_data['scales'])
+
+        self.right_plots = self.plot_data['plots']['right'] 
+        self.left_plots = self.plot_data['plots']['left'] 
+
+        self.right_label = str(self.plot_data['labels']['right'])
+        self.left_label = str(self.plot_data['labels']['left'])
+        self.bottom_label = str(self.plot_data['labels']['bottom'])
+
+        self.right_units = str(self.plot_data['units']['right'])
+        self.left_units = str(self.plot_data['units']['left'])
+        self.bottom_units= str(self.plot_data['units']['bottom'])
+        self.plot_labels = [label for label in self.plot_data['data']]
+
+        print(self.traces)
+        print(self.scales)
+        print(self.right_plots)
+        print(self.left_plots)
+        print(self.right_label)
+        print(self.left_label)
+        print(self.bottom_label)
+        print(self.right_units)
+        print(self.left_units)
+        print(self.bottom_units)
+        print(self.plot_labels)
+        exit(1)
+
 
         self.data_buffers = []
         self.universal_plots = []
@@ -969,9 +995,9 @@ class UniversalPlotWidget(QtGui.QWidget):
             color.append(self.color_transparency)
             color = tuple(color)
             self.plot_color_table[trace] = color
-            if str(trace) in self.left_y_plots or self.y_scales == 1:
+            if str(trace) in self.left_plots or self.scales == 1:
                 new_plot = self.universal_plot_widget.plot()
-            elif str(trace) in self.right_y_plots and self.y_scales == 2:
+            elif str(trace) in self.right_plots and self.scales == 2:
                 new_plot = pg.PlotDataItem()
                 self.right_axis.addItem(new_plot)
             new_plot.setPen(self.plot_color_table[trace], width=1)
@@ -996,22 +1022,22 @@ class UniversalPlotWidget(QtGui.QWidget):
             label.setAlignment(QtCore.Qt.AlignCenter)
             style = "border-radius: 6%; padding:5px; background-color: rgba{};".format(self.plot_color_table[int(plot)])
             label.setStyleSheet(style)
-            if str(plot) in self.left_y_plots:
+            if str(plot) in self.left_plots:
                 self.left_y_plots_layout.addWidget(label)
-            elif str(plot) in self.right_y_plots and self.y_scales == 2:
+            elif str(plot) in self.right_plots and self.scales == 2:
                 self.right_y_plots_layout.addWidget(label)
 
         # Push left and right layouts into main layout
         self.plot_color_label_layout.addLayout(self.left_y_plots_layout,0,0,1,1)
-        if self.y_scales == 2:
+        if self.scales == 2:
             self.plot_color_label_layout.addLayout(self.right_y_plots_layout,1,0,1,1)
 
     def create_right_axis(self):
         """Initialize right axis viewbox and link to left coordinate system"""
 
-        if self.y_scales == 2:
+        if self.scales == 2:
             # Enables right axis
-            self.universal_plot_widget.setLabel('right', self.right_y_label, units=self.right_y_units)
+            self.universal_plot_widget.setLabel('right', self.right_label, units=self.right_units)
             # Create a new ViewBox for the right axis and link to left coordinate system
             self.right_axis = pg.ViewBox()
             # Add all plots on right axis
