@@ -6,6 +6,9 @@
 ## Scrolling Plot
 ![](../doc/scrolling_plot_example.gif)
 
+## Scrolling Timestamp Plot
+![](../doc/scrolling_timestamp_plot_example.gif)
+
 ## Crosshair Plot
 ![](../doc/crosshair_plot_example.gif)
 
