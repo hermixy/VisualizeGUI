@@ -793,9 +793,9 @@ class UniversalPlotWidget(QtGui.QWidget):
     """Universal realtime plotter for a data stream coming over a ZMQ port
 
     Features:
-    - Supports many traces with a shared X-axis in a single window, on 1 or 2 
-      separate Y scales
-    - Automatic legends and distinct colors for the different traces
+    - Supports many curves with a shared X-axis in a single window, on 1 or 2
+      separate Y axis
+    - Automatic legends and distinct colors for the different curves
     - Arbitary data stream rate
     - Variable x-axis windowing (last n amount of data points)
 
@@ -836,8 +836,8 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.universal_plot_widget.plotItem.setMouseEnabled(x=False, y=False)
         self.universal_plot_widget.setXRange(self.LEFT_X, self.RIGHT_X)
         self.universal_plot_widget.setTitle('Universal Plot')
-        self.universal_plot_widget.setLabel('left', self.left_label, units=self.left_units)
-        self.universal_plot_widget.setLabel('bottom', self.bottom_label, units=self.bottom_units)
+        self.universal_plot_widget.setLabel('left', self.y1_label, units=self.y1_units)
+        self.universal_plot_widget.setLabel('bottom', self.x_label, units=self.x_units)
 
         self.initialize_LCD_display_slider()
         
@@ -852,7 +852,7 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.layout.addLayout(self.plot_color_label_layout,2,0,1,0)
 
         self.universal_plot_timer = QtCore.QTimer()
-        self.universal_plot_timer.timeout.connect(self.universal_plot_updater)
+        self.universal_plot_timer.timeout.connect(self.update_universal_plot)
         self.universal_plot_timer.start(self.get_universal_plot_refresh_rate())
 
     def initialize_LCD_display_slider(self):
@@ -877,15 +877,103 @@ class UniversalPlotWidget(QtGui.QWidget):
         
         self.universal_plot_slider.valueChanged.connect(self.update_data_points_to_display)
 
-    def update_data_points_to_display(self):
-        """Adjust x-axis range and LCD display to selected number of points"""
+    def initialize_header_data(self, data):
+        """Obtain header information"""
 
-        self.DATA_POINTS_TO_DISPLAY = self.universal_plot_slider.value()
-        self.universal_plot_slider_LCD.display(self.DATA_POINTS_TO_DISPLAY)
-        self.RIGHT_X = self.DATA_POINTS_TO_DISPLAY
-        self.x_axis = np.arange(self.LEFT_X, self.RIGHT_X + 1, self.SPACING)
-        self.universal_plot_widget.setXRange(self.LEFT_X, self.RIGHT_X)
+        raw_curve_labels = [list(data[axis]['curve']) for axis in data if axis != 'x']
+        self.curve_labels = [curve for sublist in raw_curve_labels for curve in sublist]
 
+        self.curves = len(self.curve_labels)
+        self.axis = len(data) - 1
+
+        for axis in data:
+            if axis == 'y1':
+                self.y1_label = data['y1']['label']
+                self.y1_units = data['y1']['units']
+                self.y1_curves = [curve for curve in self.curve_labels if curve in data['y1']['curve']]
+            elif axis == 'y2':
+                self.y2_label = data['y2']['label']
+                self.y2_units = data['y2']['units']
+                self.y2_curves = [curve for curve in self.curve_labels if curve in data['y2']['curve']]
+            else:
+                self.x_label = data['x']['label']
+                self.x_units = data['x']['units']
+                self.x_value = data['x']['value']
+
+    def initialize_plot(self):
+        """Parse header information and create plot buffers"""
+        
+        # Confirmed valid ZMQ plot settings so can use blocking recv
+        topic, self.raw_plot_data = self.deserialize(self.plot_socket.recv())
+        
+        self.data_buffers = {}
+        self.universal_plots = {}
+        self.plot_data = {}
+
+        self.initialize_header_data(self.raw_plot_data)
+        self.initialize_data_buffers()
+        self.initialize_plots()
+        self.initialize_plot_labels()
+
+    def initialize_data_buffers(self):
+        """Create blank data buffers for each curve"""
+
+        for curve in self.curve_labels:
+            self.data_buffers[curve] = []
+
+    def initialize_plots(self):
+        """Create curve with random RBG color
+
+        Width must be 1 otherwise there will be performance issues 
+        as documented in the pyqtgraph docs
+        """
+
+        self.create_right_axis()
+        self.plot_color_table = {}
+        self.color_transparency = 140
+
+        for curve in self.curve_labels:
+            color = list(np.random.choice(range(256), size=3))
+            color.append(self.color_transparency)
+            color = tuple(color)
+            self.plot_color_table[curve] = color
+            if curve in self.y1_curves or self.axis == 1:
+                new_plot = self.universal_plot_widget.plot()
+            elif curve in self.y2_curves and self.axis == 2:
+                new_plot = pg.PlotDataItem()
+                self.right_axis.addItem(new_plot)
+            new_plot.setPen(self.plot_color_table[curve], width=1)
+            self.universal_plots[curve] = new_plot
+
+    def initialize_plot_labels(self):
+        """Create color plot labels"""
+
+        self.plot_color_label_layout = QtGui.QGridLayout()
+
+        self.left_plots_layout = QtGui.QHBoxLayout()
+        self.left_color_labels = QtGui.QLabel('Left Plots  ')
+        self.left_plots_layout.addWidget(self.left_color_labels)
+
+        self.right_plots_layout = QtGui.QHBoxLayout()
+        self.right_color_labels = QtGui.QLabel('Right Plots')
+        self.right_plots_layout.addWidget(self.right_color_labels)
+
+        # Create plots with distinct color
+        for plot in self.curve_labels:
+            label = QtGui.QLabel(plot)
+            label.setAlignment(QtCore.Qt.AlignCenter)
+            style = "border-radius: 6%; padding:5px; background-color: rgba{};".format(self.plot_color_table[plot])
+            label.setStyleSheet(style)
+            if plot in self.y1_curves:
+                self.left_plots_layout.addWidget(label)
+            elif plot in self.y2_curves and self.axis == 2:
+                self.right_plots_layout.addWidget(label)
+        
+        # Push left and right layouts into main layout
+        self.plot_color_label_layout.addLayout(self.left_plots_layout,0,0,1,1)
+        if self.axis == 2:
+            self.plot_color_label_layout.addLayout(self.right_plots_layout,1,0,1,1)
+        
     def initial_check_valid_port(self):
         """Attempts to establish initial ZMQ socket connection"""
 
@@ -910,7 +998,90 @@ class UniversalPlotWidget(QtGui.QWidget):
         # Invalid argument
         except zmq.ZMQError, e:
             self.verified = False
-    
+
+    def create_right_axis(self):
+        """Initialize right axis viewbox and link to left coordinate system"""
+
+        if self.axis == 2:
+            # Enables right axis
+            self.universal_plot_widget.setLabel('right', self.y2_label, units=self.y2_units)
+            # Create a new ViewBox for the right axis and link to left coordinate system
+            self.right_axis = pg.ViewBox()
+            # Add all plots on right axis
+            self.universal_plot_widget.plotItem.scene().addItem(self.right_axis)
+            self.universal_plot_widget.plotItem.getAxis('right').linkToView(self.right_axis)
+            # Connect right axis plots to same x axis
+            self.right_axis.setXLink(self.universal_plot_widget.plotItem)
+            self.update_axis_views()
+            # Adjust plot if view changes
+            self.universal_plot_widget.plotItem.vb.sigResized.connect(self.update_axis_views)
+
+    def update_axis_views(self):
+        """View has resized so update auxiliary views to match"""
+
+        # Re-update linked axes
+        self.right_axis.setGeometry(self.universal_plot_widget.plotItem.vb.sceneBoundingRect())
+        self.right_axis.linkedViewChanged(self.universal_plot_widget.plotItem.vb, self.right_axis.XAxis)
+
+    def update_universal_plot_address(self, address, topic):
+        """Sets ZMQ socket connection with given address and topic"""
+
+        self.plot_address = address
+        self.plot_topic = topic
+        self.plot_context = zmq.Context()
+        self.plot_socket = self.plot_context.socket(zmq.SUB)
+        self.plot_socket.connect(self.plot_address)
+        self.plot_socket.setsockopt(zmq.SUBSCRIBE, self.plot_topic)
+
+    def update_universal_plot(self):
+        """Reads data point from socket and updates plot buffers"""
+
+        if self.verified:
+            while(True):
+                # Read data from buffer until empty
+                try:
+                    self.topic, self.raw_plot_data = self.deserialize(self.plot_socket.recv(zmq.NOBLOCK))
+                    self.update_plot_data_table(self.raw_plot_data)
+                    for curve in self.curve_labels:
+                        # Remove oldest data point if exceeds buffer size for each curve
+                        if len(self.data_buffers[curve]) > self.buffer_size:
+                            self.data_buffers[curve].pop(0)
+                        self.data_buffers[curve].append(float(self.plot_data[curve]))
+                # No data arrived from socket (buffer is empty) so put data onto plot
+                except zmq.ZMQError, e:
+                    if e.errno == zmq.EAGAIN:
+                        for curve in self.curve_labels:
+                            # Display entire buffer 
+                            if len(self.data_buffers[curve]) <= self.DATA_POINTS_TO_DISPLAY + 1:
+                                self.universal_plots[curve].setData(self.x_axis[len(self.x_axis) - len(self.data_buffers[curve]):], self.data_buffers[curve])
+                            # Truncate recent data subset depending on number of points to display
+                            else:
+                                self.universal_plots[curve].setData(self.x_axis, self.data_buffers[curve][len(self.data_buffers[curve]) - self.DATA_POINTS_TO_DISPLAY-1:])
+                    break
+
+    def update_data_points_to_display(self):
+        """Adjust x-axis range and LCD display to selected number of points"""
+
+        self.DATA_POINTS_TO_DISPLAY = self.universal_plot_slider.value()
+        self.universal_plot_slider_LCD.display(self.DATA_POINTS_TO_DISPLAY)
+        self.RIGHT_X = self.DATA_POINTS_TO_DISPLAY
+        self.x_axis = np.arange(self.LEFT_X, self.RIGHT_X + 1, self.SPACING)
+        self.universal_plot_widget.setXRange(self.LEFT_X, self.RIGHT_X)
+
+    def update_plot_data_table(self, data):
+        """Update plot data table with recent curve data"""
+
+        for axis in data:
+            if axis != 'x':
+                for curve in data[axis]['curve']:
+                    self.plot_data[curve] = data[axis]['curve'][curve]
+
+    def get_universal_plot_refresh_rate(self):
+        return self.UNIVERSAL_PLOT_REFRESH_RATE
+
+    def get_universal_plot_layout(self):
+        return self.layout
+
     def deserialize(self, data):
         raw_json = data.find('{')
         topic = data[0:raw_json].strip()
@@ -919,159 +1090,4 @@ class UniversalPlotWidget(QtGui.QWidget):
 
     def print_data(self, data):
         print(json.dumps(data, indent=4, sort_keys=True))
-
-    def update_universal_plot_address(self, address, topic):
-        """Sets ZMQ socket connection with given address and topic"""
-
-        self.plot_address = address 
-        self.plot_topic = topic
-        self.plot_context = zmq.Context()
-        self.plot_socket = self.plot_context.socket(zmq.SUB)
-        self.plot_socket.connect(self.plot_address)
-        self.plot_socket.setsockopt(zmq.SUBSCRIBE, self.plot_topic)
-
-    def initialize_plot(self):
-        """Parse header information and create plot buffers"""
-        
-        # Confirmed valid ZMQ plot settings so can use blocking recv
-        topic, self.plot_data = self.deserialize(self.plot_socket.recv())
-        
-        # Obtain header information
-        self.traces = int(self.plot_data['traces'])
-        self.scales = int(self.plot_data['scales'])
-
-        self.right_plots = self.plot_data['plots']['right'] 
-        self.left_plots = self.plot_data['plots']['left'] 
-
-        self.right_label = str(self.plot_data['labels']['right'])
-        self.left_label = str(self.plot_data['labels']['left'])
-        self.bottom_label = str(self.plot_data['labels']['bottom'])
-
-        self.right_units = str(self.plot_data['units']['right'])
-        self.left_units = str(self.plot_data['units']['left'])
-        self.bottom_units= str(self.plot_data['units']['bottom'])
-        self.plot_labels = [label for label in self.plot_data['data']]
-
-        self.data_buffers = []
-        self.universal_plots = []
-
-        self.initialize_data_buffers()
-        self.create_plots()
-        self.initialize_plot_labels()
-
-    def initialize_data_buffers(self):
-        """Create blank data buffers for each curve"""
-
-        for trace in range(self.traces):
-            self.data_buffers.append([])
-
-    def create_plots(self):
-        """Create curve with random RBG color
-
-        Width must be 1 otherwise there will be performance issues 
-        as documented in the pyqtgraph docs
-        """
-
-        self.create_right_axis()
-        self.plot_color_table = {}
-        self.color_transparency = 140
-
-        for trace in range(self.traces):
-            color = list(np.random.choice(range(256), size=3))
-            color.append(self.color_transparency)
-            color = tuple(color)
-            self.plot_color_table[trace] = color
-            if trace in self.left_plots or self.scales == 1:
-                new_plot = self.universal_plot_widget.plot()
-            elif trace in self.right_plots and self.scales == 2:
-                new_plot = pg.PlotDataItem()
-                self.right_axis.addItem(new_plot)
-            new_plot.setPen(self.plot_color_table[trace], width=1)
-            self.universal_plots.append(new_plot)
-
-    def create_right_axis(self):
-        """Initialize right axis viewbox and link to left coordinate system"""
-
-        if self.scales == 2:
-            # Enables right axis
-            self.universal_plot_widget.setLabel('right', self.right_label, units=self.right_units)
-            # Create a new ViewBox for the right axis and link to left coordinate system
-            self.right_axis = pg.ViewBox()
-            # Add all plots on right axis
-            self.universal_plot_widget.plotItem.scene().addItem(self.right_axis)
-            self.universal_plot_widget.plotItem.getAxis('right').linkToView(self.right_axis)
-            # Connect right axis plots to same x axis
-            self.right_axis.setXLink(self.universal_plot_widget.plotItem)
-            self.update_views()
-            # Adjust plot if view changes
-            self.universal_plot_widget.plotItem.vb.sigResized.connect(self.update_views)
-    
-    def initialize_plot_labels(self):
-        """Create color plot labels"""
-        self.plot_color_label_layout = QtGui.QGridLayout()
-
-        self.left_plots_layout = QtGui.QHBoxLayout()
-        self.left_color_labels = QtGui.QLabel('Left Plots  ')
-        self.left_plots_layout.addWidget(self.left_color_labels)
-
-        self.right_plots_layout = QtGui.QHBoxLayout()
-        self.right_color_labels = QtGui.QLabel('Right Plots')
-        self.right_plots_layout.addWidget(self.right_color_labels)
-
-        # Create plots with distinct color
-        for plot in range(self.traces):
-            label = QtGui.QLabel(self.plot_labels[int(plot)])
-            label.setAlignment(QtCore.Qt.AlignCenter)
-            style = "border-radius: 6%; padding:5px; background-color: rgba{};".format(self.plot_color_table[int(plot)])
-            label.setStyleSheet(style)
-            if plot in self.left_plots:
-                self.left_plots_layout.addWidget(label)
-            elif plot in self.right_plots and self.scales == 2:
-                self.right_plots_layout.addWidget(label)
-        
-        # Push left and right layouts into main layout
-        self.plot_color_label_layout.addLayout(self.left_plots_layout,0,0,1,1)
-        if self.scales == 2:
-            self.plot_color_label_layout.addLayout(self.right_plots_layout,1,0,1,1)
-        
-    def update_views(self):
-        """View has resized so update auxiliary views to match"""
-
-        # Re-update linked axes
-        self.right_axis.setGeometry(self.universal_plot_widget.plotItem.vb.sceneBoundingRect())
-        self.right_axis.linkedViewChanged(self.universal_plot_widget.plotItem.vb, self.right_axis.XAxis)
-
-    def universal_plot_updater(self):
-        """Reads data point from socket and updates plot buffers"""
-
-        if self.verified:
-            while(True):
-                # Read data from buffer until empty
-                try:
-                    self.topic, self.plot_data = self.deserialize(self.plot_socket.recv(zmq.NOBLOCK))
-                    # Remove plot header information
-                    self.plot_trace_data = [self.plot_data['data'][label] for label in self.plot_data['data']]
-                    for trace in range(self.traces):
-                        # Remove oldest data point if exceeds buffer size for each curve
-                        if len(self.data_buffers[trace]) > self.buffer_size:
-                            self.data_buffers[trace].pop(0)
-                        self.data_buffers[trace].append(float(self.plot_trace_data[trace]))
-                # No data arrived from socket (buffer is empty) so put data onto plot
-                except zmq.ZMQError, e:
-                    if e.errno == zmq.EAGAIN:
-                        for trace in range(self.traces):
-                            # Display entire buffer 
-                            if len(self.data_buffers[trace]) <= self.DATA_POINTS_TO_DISPLAY + 1:
-                                self.universal_plots[trace].setData(self.x_axis[len(self.x_axis) - len(self.data_buffers[trace]):], self.data_buffers[trace])
-                            # Truncate recent data subset depending on number of points to display
-                            else:
-                                self.universal_plots[trace].setData(self.x_axis, self.data_buffers[trace][len(self.data_buffers[trace]) - self.DATA_POINTS_TO_DISPLAY-1:])
-                    break
-
-    def get_universal_plot_refresh_rate(self):
-        return self.UNIVERSAL_PLOT_REFRESH_RATE
-
-    def get_universal_plot_layout(self):
-        return self.layout
-
 

@@ -4,77 +4,118 @@ import json
 import random
 
 class UniversalPlotServer(object):
-    """Plots dynamic amount of traces"""
+    """Plots dynamic amount of curves"""
 
     def __init__(self):
         self.initialize_server()
         self.initialize_data_packet()
     
     def serialize(self, topic, data):
+        """Transform data into json format"""
+
         return str(topic) + " " + json.dumps(data)
 
     def initialize_server(self):
-        """Establish ZMQ socket connection, # of traces, and # of y scales"""
+        """Establish ZMQ socket connection"""
         
-        self.plot_context = zmq.Context()
         # Pub/sub pattern for async connections
+        self.plot_context = zmq.Context()
         self.plot_socket = self.plot_context.socket(zmq.PUB)  
         self.plot_socket.bind("tcp://*:6020")
         self.plot_topic = 20000
         
     def initialize_data_packet(self):
-        """Construct data packet header information according to format"""
+        """Construct data packet information according to format:
 
-        self.traces = 6
-        self.scales = 2
-        self.right_plots = [1,3,5]
-        self.left_plots = [0,2,4]
+        data_packet = {
+            'x': {
+                'label': string,
+                'units': string,
+                'value': float
+                },
+            'y1': {
+                'label': string,
+                'units': string,
+                'curve': {
+                    'curve0': float/int,
+                    'curve1': float/int,
+                    ...
+                },
+            'y2': {
+                'label': string,
+                'units': string,
+                'curve': {
+                    'curve2': float/int,
+                    'curve3': float/int,
+                    ...
+                 },
+            ...
+        }
+        """
 
-        self.right_label = 'Temperature'
-        self.left_label = 'Pressure'
-        self.bottom_label = 'Points'
-
-        self.right_units = 'C'
-        self.left_units = 'Pa'
-        self.bottom_units = '#'
+        self.x_label = 'Time'
+        self.x_units = 'Timestamp'
+        self.x_value = 10
+        self.y1_label = 'Pressure'
+        self.y1_units = 'Pa'
+        self.y1_curves = {
+                'curve0': 0,
+                'curve1': 1,
+                'curve2': 0,
+                'curve3': 1
+        }
+        self.y2_label = 'Temperature'
+        self.y2_units = 'C'
+        self.y2_curves = {
+                'curve4': 2,
+                'curve5': 3,
+                'curve6': 2,
+                'curve7': 3,
+                'curve8': 2,
+                'curve9': 3
+        }
 
         self.data_packet = {
-            'traces': self.traces,
-            'scales': self.scales,
-            'plots': {
-                    'right': self.right_plots,
-                    'left': self.left_plots
-                    },
-            'labels': {
-                    'right': self.right_label,
-                    'left': self.left_label,
-                    'bottom': self.bottom_label
-                    },
-            'units': {
-                    'right': self.right_units,
-                    'left': self.left_units,
-                    'bottom': self.bottom_units
-                    }
+            'x': {
+                'label': self.x_label,
+                'units': self.x_units,
+                'value': self.x_value
+            },
+            'y1': {
+                'label': self.y1_label,
+                'units': self.y1_units,
+                'curve': self.y1_curves
+            },
+            'y2': {
+                'label': self.y2_label,
+                'units': self.y2_units,
+                'curve': self.y2_curves
+            }
         }
         
-        self.plot_data = {}
-
     def update_data(self):
         """Update data table and generate new data string"""
         low = 10
         high = 100
         diff = 0
-        for trace in range(self.traces):
-            self.plot_data['trace' + str(trace)] = random.randint(low + diff, high + diff)
-        self.data_packet['data'] = self.plot_data
+
+        for axis in self.data_packet:
+            if axis != 'x':
+                for curve in self.data_packet[axis]['curve']:
+                    self.data_packet[axis]['curve'][curve] = random.randint(low + diff, high + diff)
+                    diff += 100
         
     def print_data(self,data):
+        """Unpack and print json data"""
+
         print(json.dumps(data, indent=4, sort_keys=True))
 
     def server_loop(self):
+        """Update curve data and send packet"""
+
         self.update_data()
         self.plot_socket.send(self.serialize(self.plot_topic, self.data_packet))
-        print('sent')
+        self.print_data(self.data_packet)
 
 if __name__ == '__main__':
     universal_plot_server = UniversalPlotServer()
