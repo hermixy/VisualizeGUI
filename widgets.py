@@ -1,5 +1,6 @@
 from PyQt4 import QtCore, QtGui
 from utility import decode_image_from_base64, placeholder_image
+from collections import deque
 import imutils
 import pyqtgraph as pg
 import json
@@ -789,6 +790,21 @@ class OverlayWidget(QtGui.QWidget):
     def get_y(self):
         return self.crosshair.get_y()
 
+class TimeAxisItem(pg.AxisItem):
+    """Internal plot tool for x-axis timestamps
+
+    Usage:
+    plot_widget = pg.PlotWidget(axisItems={'bottom': TimeAxisItem(orientation='bottom')})
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(TimeAxisItem, self).__init__(*args, **kwargs)
+
+    def tickStrings(self, values, scale, spacing):
+        """Function overloading the weak default version to provide timestamp"""
+
+        return [QtCore.QTime().addMSecs(value).toString('mm:ss') for value in values]
+
 class UniversalPlotWidget(QtGui.QWidget):
     """Universal realtime plotter for a data stream coming over a ZMQ port
 
@@ -822,22 +838,16 @@ class UniversalPlotWidget(QtGui.QWidget):
         # self.UNIVERSAL_PLOT_REFRESH_RATE  = 1 / Desired Frequency (Hz) * 1000
         self.UNIVERSAL_PLOT_REFRESH_RATE  = 7
 
-        # Set X Axis range. If desired is [-10,0] then set LEFT_X = -10 and RIGHT_X = 0
-        self.LEFT_X = 0
-        self.RIGHT_X = self.DATA_POINTS_TO_DISPLAY
-        self.x_axis = np.arange(self.LEFT_X, self.RIGHT_X + 1, self.SPACING)
-        self.buffer_size = int((abs(self.LEFT_X) + abs(self.MAXIMUM_DATA_POINTS) + 1)/self.SPACING)
-
         # Create Universal Plot Widget
         self.universal_plot_widget = pg.PlotWidget()
         self.initial_check_valid_port()
 
         # Plot settings
         self.universal_plot_widget.plotItem.setMouseEnabled(x=False, y=False)
-        self.universal_plot_widget.setXRange(self.LEFT_X, self.RIGHT_X)
         self.universal_plot_widget.setTitle('Universal Plot')
         self.universal_plot_widget.setLabel('left', self.y1_label, units=self.y1_units)
         self.universal_plot_widget.setLabel('bottom', self.x_label, units=self.x_units)
+        self.universal_plot_widget.setLabel('bottom', self.x_label)
 
         self.initialize_LCD_display_slider()
         
@@ -851,6 +861,7 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.layout.addLayout(self.slider_layout,1,0,1,0)
         self.layout.addLayout(self.plot_color_label_layout,2,0,1,0)
 
+        self.buffer_size = 0
         self.universal_plot_timer = QtCore.QTimer()
         self.universal_plot_timer.timeout.connect(self.update_universal_plot)
         self.universal_plot_timer.start(self.get_universal_plot_refresh_rate())
@@ -915,11 +926,14 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.initialize_plots()
         self.initialize_plot_labels()
 
+        self.print_data(self.raw_plot_data)
+
     def initialize_data_buffers(self):
         """Create blank data buffers for each curve"""
 
+        # Automatically pops from left if length is full
         for curve in self.curve_labels:
-            self.data_buffers[curve] = []
+            self.data_buffers[curve] = deque(maxlen=self.MAXIMUM_DATA_POINTS)
 
     def initialize_plots(self):
         """Create curve with random RBG color
@@ -1043,20 +1057,22 @@ class UniversalPlotWidget(QtGui.QWidget):
                     self.topic, self.raw_plot_data = self.deserialize(self.plot_socket.recv(zmq.NOBLOCK))
                     self.update_plot_data_table(self.raw_plot_data)
                     for curve in self.curve_labels:
-                        # Remove oldest data point if exceeds buffer size for each curve
-                        if len(self.data_buffers[curve]) > self.buffer_size:
-                            self.data_buffers[curve].pop(0)
-                        self.data_buffers[curve].append(float(self.plot_data[curve]))
+                        self.data_buffers[curve].append({'x': float(self.plot_data[curve]['x']), 'y': float(self.plot_data[curve]['y'])})
+                        # print(len(self.data_buffers[curve]))
                 # No data arrived from socket (buffer is empty) so put data onto plot
                 except zmq.ZMQError, e:
                     if e.errno == zmq.EAGAIN:
                         for curve in self.curve_labels:
                             # Display entire buffer 
+                            x_axis = [item['x'] for item in self.data_buffers[curve]]
+                            y_axis = [item['y'] for item in self.data_buffers[curve]]
+                            self.buffer_size = len(self.data_buffers[curve])
+                            # Display entire buffer
                             if len(self.data_buffers[curve]) <= self.DATA_POINTS_TO_DISPLAY + 1:
-                                self.universal_plots[curve].setData(self.x_axis[len(self.x_axis) - len(self.data_buffers[curve]):], self.data_buffers[curve])
+                                self.universal_plots[curve].setData(x_axis, y_axis)
                             # Truncate recent data subset depending on number of points to display
                             else:
-                                self.universal_plots[curve].setData(self.x_axis, self.data_buffers[curve][len(self.data_buffers[curve]) - self.DATA_POINTS_TO_DISPLAY-1:])
+                                self.universal_plots[curve].setData(x_axis[(len(x_axis) - self.DATA_POINTS_TO_DISPLAY):], y_axis[(len(y_axis) - self.DATA_POINTS_TO_DISPLAY):])
                     break
 
     def update_data_points_to_display(self):
@@ -1064,17 +1080,15 @@ class UniversalPlotWidget(QtGui.QWidget):
 
         self.DATA_POINTS_TO_DISPLAY = self.universal_plot_slider.value()
         self.universal_plot_slider_LCD.display(self.DATA_POINTS_TO_DISPLAY)
-        self.RIGHT_X = self.DATA_POINTS_TO_DISPLAY
-        self.x_axis = np.arange(self.LEFT_X, self.RIGHT_X + 1, self.SPACING)
-        self.universal_plot_widget.setXRange(self.LEFT_X, self.RIGHT_X)
 
     def update_plot_data_table(self, data):
         """Update plot data table with recent curve data"""
 
+        x_value = data['x']['value']
         for axis in data:
             if axis != 'x':
                 for curve in data[axis]['curve']:
-                    self.plot_data[curve] = data[axis]['curve'][curve]
+                    self.plot_data[curve] = {'x': x_value, 'y': data[axis]['curve'][curve]}
 
     def get_universal_plot_refresh_rate(self):
         return self.UNIVERSAL_PLOT_REFRESH_RATE
