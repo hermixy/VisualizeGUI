@@ -966,10 +966,12 @@ class UniversalPlotWidget(QtGui.QWidget):
 
         self.left_plots_layout = QtGui.QHBoxLayout()
         self.left_color_labels = QtGui.QLabel('Left Plots  ')
+        self.left_color_labels.setFixedSize(65,25)
         self.left_plots_layout.addWidget(self.left_color_labels)
 
         self.right_plots_layout = QtGui.QHBoxLayout()
         self.right_color_labels = QtGui.QLabel('Right Plots')
+        self.right_color_labels.setFixedSize(65,25)
         self.right_plots_layout.addWidget(self.right_color_labels)
 
         # Create plots with distinct color
@@ -1016,7 +1018,7 @@ class UniversalPlotWidget(QtGui.QWidget):
     def create_right_axis(self):
         """Initialize right axis viewbox and link to left coordinate system"""
 
-        if self.axis == 2:
+        if self.axis == 2 and self.y2_curves:
             # Enables right axis
             self.universal_plot_widget.setLabel('right', self.y2_label, units=self.y2_units)
             # Create a new ViewBox for the right axis and link to left coordinate system
