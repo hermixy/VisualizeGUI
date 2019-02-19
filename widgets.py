@@ -1060,22 +1060,45 @@ class UniversalPlotWidget(QtGui.QWidget):
                     self.update_plot_data_table(self.raw_plot_data)
                     for curve in self.curve_labels:
                         self.data_buffers[curve].append({'x': float(self.plot_data[curve]['x']), 'y': float(self.plot_data[curve]['y'])})
-                        # print(len(self.data_buffers[curve]))
+                        self.buffer_size = len(self.data_buffers[curve])
                 # No data arrived from socket (buffer is empty) so put data onto plot
                 except zmq.ZMQError, e:
                     if e.errno == zmq.EAGAIN:
-                        for curve in self.curve_labels:
-                            # Display entire buffer 
+                        for curve_number, curve in enumerate(self.curve_labels):
                             x_axis = [item['x'] for item in self.data_buffers[curve]]
                             y_axis = [item['y'] for item in self.data_buffers[curve]]
-                            self.buffer_size = len(self.data_buffers[curve])
                             # Display entire buffer
                             if len(self.data_buffers[curve]) <= self.DATA_POINTS_TO_DISPLAY + 1:
                                 self.universal_plots[curve].setData(x_axis, y_axis)
+                                # Only update x-axis on last curve to prevent redundancy
+                                if curve_number == self.curves - 1:
+                                    self.aspect_ratio = self.calculate_aspect_ratio_value(self.buffer_size, x_axis[0], x_axis[-1])
+                                    self.universal_plot_widget.setXRange(x_axis[0] - self.aspect_ratio, x_axis[-1])
                             # Truncate recent data subset depending on number of points to display
                             else:
                                 self.universal_plots[curve].setData(x_axis[(len(x_axis) - self.DATA_POINTS_TO_DISPLAY):], y_axis[(len(y_axis) - self.DATA_POINTS_TO_DISPLAY):])
+                                # Only update x-axis on last curve to prevent redundancy
+                                if curve_number == self.curves - 1:
+                                    self.universal_plot_widget.setXRange(x_axis[(len(x_axis) - self.DATA_POINTS_TO_DISPLAY)], x_axis[-1])
                     break
+
+    def calculate_aspect_ratio_value(self, buffer_size, x_axis_left, x_axis_right):
+        """Estimate point left point for setXRange function
+
+        Perform estimated calculations to determine the x point when length
+        of buffer is less than the number of points to display.
+
+                       x[0]    x[-1]
+        |               |        |
+        |               |        |
+        |_______________|________|
+        ???           60000    60200
+
+        """
+
+        buffer_ratio = buffer_size/float(self.DATA_POINTS_TO_DISPLAY)
+        estimated_difference = buffer_ratio/float(x_axis_right - x_axis_left)
+        return (1-buffer_ratio)/float(estimated_difference)
 
     def update_data_points_to_display(self):
         """Adjust x-axis range and LCD display to selected number of points"""
