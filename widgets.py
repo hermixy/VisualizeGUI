@@ -11,6 +11,7 @@ import sys
 import time
 from threading import Thread
 import cv2
+import timeit
 
 """Modular widget classes 
 
@@ -958,7 +959,7 @@ class UniversalPlotWidget(QtGui.QWidget):
                 self.right_axis.addItem(new_plot)
             new_plot.setPen(self.plot_color_table[curve], width=1)
             self.universal_plots[curve] = new_plot
-
+    
     def initialize_plot_labels(self):
         """Create color plot labels"""
 
@@ -973,17 +974,18 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.right_color_labels = QtGui.QLabel('Right Plots')
         self.right_color_labels.setFixedSize(65,25)
         self.right_plots_layout.addWidget(self.right_color_labels)
-
-        # Create plots with distinct color
+        
+        # Create plots and plot labels with distinct color
         for plot in self.curve_labels:
-            label = QtGui.QLabel(plot)
-            label.setAlignment(QtCore.Qt.AlignCenter)
+            button_label = QtGui.QPushButton(plot)
+            button_label.setCheckable(True)
+            button_label.clicked.connect(lambda: self.toggle_plot_button(button_label))
             style = "border-radius: 6%; padding:5px; background-color: rgba{};".format(self.plot_color_table[plot])
-            label.setStyleSheet(style)
+            button_label.setStyleSheet(style)
             if plot in self.y1_curves:
-                self.left_plots_layout.addWidget(label)
+                self.left_plots_layout.addWidget(button_label)
             elif plot in self.y2_curves and self.axis == 2:
-                self.right_plots_layout.addWidget(label)
+                self.right_plots_layout.addWidget(button_label)
         
         # Push left and right layouts into main layout
         self.plot_color_label_layout.addLayout(self.left_plots_layout,0,0,1,1)
@@ -1114,6 +1116,12 @@ class UniversalPlotWidget(QtGui.QWidget):
             if axis != 'x':
                 for curve in data[axis]['curve']:
                     self.plot_data[curve] = {'x': x_value, 'y': data[axis]['curve'][curve]}
+
+    def toggle_plot_button(self, button):
+        """Toggle plot show/hide on button click"""
+
+        curve_name = str(self.sender().text())
+        self.universal_plots[curve_name].hide() if self.universal_plots[curve_name].isVisible() else self.universal_plots[curve_name].show()
 
     def get_universal_plot_refresh_rate(self):
         return self.UNIVERSAL_PLOT_REFRESH_RATE
