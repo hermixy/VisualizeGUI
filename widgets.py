@@ -846,9 +846,12 @@ class UniversalPlotWidget(QtGui.QWidget):
         # Plot settings
         self.universal_plot_widget.plotItem.setMouseEnabled(x=False, y=False)
         self.universal_plot_widget.setTitle('Universal Plot')
-        self.universal_plot_widget.setLabel('left', self.y1_label, units=self.y1_units)
-        self.universal_plot_widget.setLabel('bottom', self.x_label, units=self.x_units)
-        self.universal_plot_widget.setLabel('bottom', self.x_label)
+        self.left_axis_label_style = {'color': '#e3e3e3', 'font-size': '11pt'}
+        self.bottom_axis_label_style = {'color': '#e3e3e3', 'font-size': '11pt'}
+        self.universal_plot_widget.setLabel('left', self.y1_label, units=self.y1_units, **self.left_axis_label_style)
+        self.universal_plot_widget.setLabel('bottom', self.x_label, units=self.x_units, **self.bottom_axis_label_style)
+        self.universal_plot_widget.plotItem.getAxis('bottom').enableAutoSIPrefix(False)
+        self.universal_plot_widget.plotItem.getAxis('left').enableAutoSIPrefix(False)
 
         self.initialize_LCD_display_slider()
         
@@ -1022,9 +1025,13 @@ class UniversalPlotWidget(QtGui.QWidget):
 
         if self.axis == 2 and self.y2_curves:
             # Enables right axis
-            self.universal_plot_widget.setLabel('right', self.y2_label, units=self.y2_units)
+            self.right_axis_label_style = {'color': '#e3e3e3', 'font-size': '11pt'}
+            self.universal_plot_widget.setLabel('right', self.y2_label, units=self.y2_units, **self.right_axis_label_style)
+            self.universal_plot_widget.plotItem.getAxis('right').enableAutoSIPrefix(False)
             # Create a new ViewBox for the right axis and link to left coordinate system
             self.right_axis = pg.ViewBox()
+            self.right_axis.enableAutoRange(axis=pg.ViewBox.XYAxes, enable=True)
+            self.right_axis.setAutoPan()
             # Add all plots on right axis
             self.universal_plot_widget.plotItem.scene().addItem(self.right_axis)
             self.universal_plot_widget.plotItem.getAxis('right').linkToView(self.right_axis)
