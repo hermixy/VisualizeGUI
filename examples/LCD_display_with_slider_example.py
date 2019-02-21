@@ -1,5 +1,7 @@
 from PyQt4 import QtGui, QtCore
 import sys
+sys.path.append('../')
+from load_CSS import load_CSS
 
 """LCD Display Widget"""
 
@@ -29,6 +31,7 @@ class LCDDisplayWidget(QtGui.QWidget):
 
 # Create main application window
 app = QtGui.QApplication([])
+app.setStyleSheet(load_CSS())
 app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
 mw.setWindowTitle('LCD Display w/ Slider Example')

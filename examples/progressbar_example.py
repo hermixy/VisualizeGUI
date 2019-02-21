@@ -1,33 +1,7 @@
 from PyQt4 import QtGui, QtCore
 import sys
-
-progressbar_style = """
-    QProgressBar {
-	border: 2px solid grey;
-	border-radius: 5px;
-	text-align: center;
-    }
-
-    QProgressBar::chunk{
-        background-color: #05B8CC;
-    }
-"""
-pushbutton_style = """
-    QPushButton {
-	border: 2px solid #8f8f91;
-	border-radius: 6px;
-	background-color: #5d84ae;
-	min-width: 80px;
-    }
-
-    QPushButton:pressed {
-	background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,stop: 0 #dadbde, stop: 1 #f6f7fa);
-    }
-
-    QPushButton:default {
-	border-color: navy; /* make the default button prominent */
-    }
-"""
+sys.path.append('../')
+from load_CSS import load_CSS
 
 """Progressbar Widget Example"""
 
@@ -37,10 +11,8 @@ class ProgessbarWidget(QtGui.QWidget):
         
         self.progressbar = QtGui.QProgressBar(self)
         self.progressbar.setGeometry(30, 40, 200, 25)
-        self.progressbar.setStyleSheet(progressbar_style)
 
         self.button = QtGui.QPushButton('Start', self)
-	self.button.setStyleSheet(pushbutton_style)
         self.button.clicked.connect(self.toggle_progressbar)
 
         self.timer = QtCore.QBasicTimer()
@@ -73,6 +45,7 @@ class ProgessbarWidget(QtGui.QWidget):
 if __name__ == '__main__':
     # Create main application window
     app = QtGui.QApplication([])
+    app.setStyleSheet(load_CSS())
     app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
     mw = QtGui.QMainWindow()
     mw.setWindowTitle('Progressbar Example')
