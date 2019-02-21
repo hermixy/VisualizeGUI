@@ -958,7 +958,7 @@ class UniversalPlotWidget(QtGui.QWidget):
 
         self.create_right_axis()
         self.plot_color_table = {}
-        self.color_transparency = 140
+        self.color_transparency = 190
 
         for curve in self.curve_labels:
             color = list(np.random.choice(range(256), size=3))
@@ -988,16 +988,21 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.right_color_labels.setFixedSize(65,25)
         self.right_plots_layout.addWidget(self.right_color_labels)
         
+        self.plot_button_label_colors = {}
+        self.plot_button_labels = {}
+
         # Create plots and plot labels with distinct color
-        for plot in self.curve_labels:
-            button_label = QtGui.QPushButton(plot)
+        for curve in self.curve_labels:
+            button_label = QtGui.QPushButton(curve)
             button_label.setCheckable(True)
             button_label.clicked.connect(lambda: self.toggle_plot_button(button_label))
-            style = "border-radius: 6%; padding:5px; background-color: rgba{};".format(self.plot_color_table[plot])
+            style = "border-radius: 6%; padding:5px; background-color: rgba{};".format(self.plot_color_table[curve])
             button_label.setStyleSheet(style)
-            if plot in self.y1_curves:
+            self.plot_button_labels[curve] = button_label
+            self.plot_button_label_colors[curve] = style
+            if curve in self.y1_curves:
                 self.left_plots_layout.addWidget(button_label)
-            elif plot in self.y2_curves and self.axis == 2:
+            elif curve in self.y2_curves and self.axis == 2:
                 self.right_plots_layout.addWidget(button_label)
         
         # Push left and right layouts into main layout
@@ -1138,7 +1143,16 @@ class UniversalPlotWidget(QtGui.QWidget):
         """Toggle plot show/hide on button click"""
 
         curve_name = str(self.sender().text())
-        self.universal_plots[curve_name].hide() if self.universal_plots[curve_name].isVisible() else self.universal_plots[curve_name].show()
+        plot_disabled_style = "border-radius: 6%; padding:5px; background-color: rgba(0,0,0,255);"
+
+        # Hide plot and change plot label to black
+        if self.universal_plots[curve_name].isVisible():
+            self.universal_plots[curve_name].hide()
+            self.plot_button_labels[curve_name].setStyleSheet(plot_disabled_style)
+        # Show plot and change plot label to plot color
+        else:
+            self.universal_plots[curve_name].show()
+            self.plot_button_labels[curve_name].setStyleSheet(self.plot_button_label_colors[curve_name])
 
     def get_universal_plot_refresh_rate(self):
         return self.UNIVERSAL_PLOT_REFRESH_RATE
