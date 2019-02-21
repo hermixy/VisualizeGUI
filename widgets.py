@@ -792,7 +792,7 @@ class OverlayWidget(QtGui.QWidget):
         return self.crosshair.get_y()
 
 class TimeAxisItem(pg.AxisItem):
-    """Internal plot tool for x-axis timestamps
+    """Internal plot tool for x-axis timestamps in mm:ss format
 
     Usage:
     plot_widget = pg.PlotWidget(axisItems={'bottom': TimeAxisItem(orientation='bottom')})
@@ -805,6 +805,16 @@ class TimeAxisItem(pg.AxisItem):
         """Function overloading the weak default version to provide timestamp"""
 
         return [QtCore.QTime().addMSecs(value).toString('mm:ss') for value in values]
+
+class NonScientific(pg.AxisItem):
+    """Override class to remove scientific notation on y-axis"""
+
+    def __init__(self, *args, **kwargs):
+        super(NonScientific, self).__init__(*args, **kwargs)
+
+    def tickStrings(self, values, scale, spacing):
+        # Return nonscientific notation
+        return [int(value*1) for value in values]
 
 class UniversalPlotWidget(QtGui.QWidget):
     """Universal realtime plotter for a data stream coming over a ZMQ port
@@ -840,7 +850,7 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.UNIVERSAL_PLOT_REFRESH_RATE  = 7
 
         # Create Universal Plot Widget
-        self.universal_plot_widget = pg.PlotWidget()
+        self.universal_plot_widget = pg.PlotWidget(axisItems={'left': NonScientific(orientation='left'), 'right': NonScientific(orientation='right')})
         self.initial_check_valid_port()
 
         # Plot settings

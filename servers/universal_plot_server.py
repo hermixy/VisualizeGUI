@@ -82,12 +82,22 @@ class UniversalPlotServer(object):
         self.y1_label = 'Pressure'
         self.y1_units = 'Pa'
         self.y1_curves = {
-                'curve0': 0
+                'curve0': 0,
+                'curve1': 0,
+                'curve2': 0,
+                'curve3': 0,
+                'curve5': 0,
+                'curve6': 0
         }
         self.y2_label = 'Temperature'
         self.y2_units = 'C'
         self.y2_curves = {
-                'curve1': 2
+                'curve7': 2,
+                'curve8': 2,
+                'curve9': 2,
+                'curve10': 2,
+                'curve11': 2,
+                'curve12': 2
         }
 
         self.data_packet = {
@@ -113,11 +123,13 @@ class UniversalPlotServer(object):
         low = 10
         high = 100
         diff = 0
+        self.increment = 0
 
         for axis in self.data_packet:
             if axis != 'x':
                 for curve in self.data_packet[axis]['curve']:
-                    self.data_packet[axis]['curve'][curve] = random.randint(low + diff, high + diff)
+                    self.data_packet[axis]['curve'][curve] += random.randint(low + diff, high + diff) + self.increment
+                    self.increment += 10 
                     diff += 100
             else:
                 self.data_packet['x']['value'] = self.send_elapsed_time()
