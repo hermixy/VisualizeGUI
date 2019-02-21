@@ -838,7 +838,8 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.verified = False
         self.DATA_TIMEOUT = 1
         self.SPACING = 1
-        self.plot_address = 'tcp://192.168.1.143:6020'
+        # self.plot_address = 'tcp://192.168.1.143:6020'
+        self.plot_address = 'tcp://192.168.1.211:6020'
         self.plot_topic = '20000'
         
         self.DATA_POINTS_TO_DISPLAY = 1000
