@@ -31,7 +31,7 @@ class LCDDisplayWidget(QtGui.QWidget):
 
 # Create main application window
 app = QtGui.QApplication([])
-app.setStyleSheet(load_CSS())
+app.setStyleSheet(load_CSS(0))
 app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
 mw.setWindowTitle('LCD Display w/ Slider Example')
