@@ -9,8 +9,9 @@ class UniversalPlotServerIMULogger(object):
 
     def __init__(self):
         self.initialize_server()
-        self.initialize_data_packet()
         self.initialize_data_file_location()
+        self.get_initial_data_points()
+        self.initialize_data_packet()
 
     def serialize(self, topic, data):
         """Transform data into json format"""
@@ -27,16 +28,14 @@ class UniversalPlotServerIMULogger(object):
         self.plot_topic = 20000
 
     def initialize_data_file_location(self):
-        self.path = '/IMU_pi_logger/logs'
+        self.path = '../../IMU_pi_logger/logs'
 
         if not os.path.exists(self.path):
-            print('Path does not exist')
+            print("No log files, is logger on?")
             exit(1)
         else:
-            print('path exists')
-            exit(1)
             self.filename = self.get_log_file_name()
-            print(self.filename)
+            self.file_path = self.path + '/' + self.filename
     
     def get_log_file_name(self):
 
@@ -52,6 +51,7 @@ class UniversalPlotServerIMULogger(object):
         # Directory is empty
         if not l:
             print('No log files, is logger on?')
+            exit(1)
         # Directory has files so find latest
         else:
             latest_file_number = max(l)
@@ -89,25 +89,16 @@ class UniversalPlotServerIMULogger(object):
         self.x_label = 'Time'
         self.x_units = 's'
         self.x_value = self.send_current_time()
-        self.y1_label = 'Pressure'
-        self.y1_units = 'Pa'
+        self.y1_label = 'IMU'
+        self.y1_units = 'm/s^2'
         self.y1_curves = {
-                'curve0': 0,
-                'curve1': 0,
-                'curve2': 0,
-                'curve3': 0,
-                'curve5': 0,
-                'curve6': 0
+                'x': 0,
+                'y': 0
         }
-        self.y2_label = 'Temperature'
-        self.y2_units = 'C'
+        self.y2_label = 'IMU1'
+        self.y2_units = 'm/s^2'
         self.y2_curves = {
-                'curve7': 2,
-                'curve8': 2,
-                'curve9': 2,
-                'curve10': 2,
-                'curve11': 2,
-                'curve12': 2
+                'z': 0
         }
 
         self.data_packet = {
@@ -127,16 +118,51 @@ class UniversalPlotServerIMULogger(object):
                 'curve': self.y2_curves
             }
         }
+    
+    def get_initial_data_points(self):
+        self.inital_points = False
+        while not self.inital_points:
+            with open(self.file_path, 'r') as fh:
+                fh.seek(-100, os.SEEK_END)
+                raw_data = fh.readlines()[-1].decode().strip()
+                if len(raw_data) == 56 and raw_data[23:29] == '$VNACC':
+                    date, raw_timestamp, mode, x, y, z = raw_data.split(',')
+                    self.seconds = self.convert_timestamp_to_seconds(str(raw_timestamp))
+
+                    self.x = float(x)
+                    self.y = float(y)
+                    self.z = float(z[:-3])
+                    self.inital_points = True
+
+    def read_latest_data(self):
+        with open(self.file_path, 'r') as fh:
+            fh.seek(-100, os.SEEK_END)
+            raw_data = fh.readlines()[-1].decode().strip()
+            
+            if len(raw_data) == 56 and raw_data[23:29] == '$VNACC':
+                date, raw_timestamp, mode, x, y, z = raw_data.split(',')
+                self.seconds = self.convert_timestamp_to_seconds(str(raw_timestamp))
+                self.x = float(x)
+                self.y = float(y)
+                self.z = float(z[:-3])
+            
+    def convert_timestamp_to_seconds(self, timestamp):
+        h,m,s = timestamp.split(':')
+        return float(h) * 3600.0 + float(m) * 60.0 + float(s) 
 
     def update_data(self):
         """Update data table and generate new data string"""
-
+        
+        self.read_latest_data()
         for axis in self.data_packet:
             if axis != 'x':
                 for curve in self.data_packet[axis]['curve']:
-                    self.data_packet[axis]['curve'][curve] += random.randint(low + diff, high + diff) + self.increment
-                    self.increment += 10 
-                    diff += 100
+                    if curve == 'x':
+                        self.data_packet[axis]['curve'][curve] = self.x
+                    elif curve == 'y':
+                        self.data_packet[axis]['curve'][curve] = self.y
+                    elif curve == 'z':
+                        self.data_packet[axis]['curve'][curve] = self.z
             else:
                 self.data_packet['x']['value'] = self.send_current_time()
 
@@ -150,14 +176,14 @@ class UniversalPlotServerIMULogger(object):
 
         self.update_data()
         self.plot_socket.send(self.serialize(self.plot_topic, self.data_packet))
-        self.print_data(self.data_packet)
+        # self.print_data(self.data_packet)
 
     def send_current_time(self):
-        """Elapsed time in (ms)"""
-        pass
+        """Current timestamp"""
+        return self.seconds
+
 if __name__ == '__main__':
     universal_plot_server_IMU_logger = UniversalPlotServerIMULogger()
     while True:
         universal_plot_server_IMU_logger.server_loop()
-        time.sleep(0.025)
 
