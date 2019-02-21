@@ -755,6 +755,12 @@ def clear_plots():
     logging.info("Cleared plots")
     status_bar.showMessage('Plots cleared', 4000)
 
+def change_to_default_theme():
+    app.setStyleSheet(load_CSS(0))
+
+def change_to_dark_theme():
+    app.setStyleSheet(load_CSS(1))
+
 def change_plot_color(plotObject):
     """Opens color palette selector to change color"""
 
@@ -775,7 +781,7 @@ def exit_application():
 
 # Create main application window
 app = QtGui.QApplication([])
-app.setStyleSheet(load_CSS(0))
+app.setStyleSheet(load_CSS(1))
 app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
 mw.setWindowTitle('Rotational Controller GUI')
@@ -871,6 +877,18 @@ change_rotational_controller_plot_color_action = QtGui.QAction('Change Rotationa
 change_rotational_controller_plot_color_action.setStatusTip('Change rotational controller plot color')
 change_rotational_controller_plot_color_action.triggered.connect(lambda: change_plot_color(rotational_controller_plot))
 display_menu.addAction(change_rotational_controller_plot_color_action)
+
+change_to_default_theme_action = QtGui.QAction('Change To Default Theme', mw)
+change_to_default_theme_action.setShortcut('Ctrl+T')
+change_to_default_theme_action.setStatusTip('Change Rotational Controller to default color theme')
+change_to_default_theme_action.triggered.connect(change_to_default_theme)
+display_menu.addAction(change_to_default_theme_action)
+
+change_to_dark_theme_action = QtGui.QAction('Change To Dark Theme', mw)
+change_to_dark_theme_action.setShortcut('Ctrl+D')
+change_to_dark_theme_action.setStatusTip('Change Rotational Controller to dark color theme')
+change_to_dark_theme_action.triggered.connect(change_to_dark_theme)
+display_menu.addAction(change_to_dark_theme_action)
 
 # Format Menu
 write_to_file_toggle = QtGui.QAction('Save Port Settings', mw, checkable=True)
