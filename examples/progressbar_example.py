@@ -45,7 +45,7 @@ class ProgessbarWidget(QtGui.QWidget):
 if __name__ == '__main__':
     # Create main application window
     app = QtGui.QApplication([])
-    app.setStyleSheet(load_CSS(1))
+    app.setStyleSheet(load_CSS(0))
     app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
     mw = QtGui.QMainWindow()
     mw.setWindowTitle('Progressbar Example')

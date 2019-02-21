@@ -3,6 +3,7 @@ from PyQt4.QtGui import QSizePolicy
 from widgets import ZMQPlotWidget 
 from widgets import RotationalControllerPlotWidget 
 from widgets import PlotColorWidget 
+from load_CSS import load_CSS
 import pyqtgraph as pg
 import zmq
 import numpy as np
@@ -177,7 +178,7 @@ class PortSettingPopUpWidget(QtGui.QWidget):
     def __init__(self, window_title, parent=None):
         super(PortSettingPopUpWidget, self).__init__(parent)
 
-        self.POPUP_WIDTH = 195
+        self.POPUP_WIDTH = 220
         self.POPUP_HEIGHT = 150
         self.setFixedSize(self.POPUP_WIDTH, self.POPUP_HEIGHT)
 
@@ -774,6 +775,7 @@ def exit_application():
 
 # Create main application window
 app = QtGui.QApplication([])
+app.setStyleSheet(load_CSS(0))
 app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
 mw = QtGui.QMainWindow()
 mw.setWindowTitle('Rotational Controller GUI')
