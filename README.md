@@ -60,3 +60,7 @@ rotational_controller_server_alt.py 6012 10000
 
 Switch rotational_parameter_position_server_alt.py for rotational_controller_server.py (One at a time)
 
+## Universal Plot GUI
+
+![](/doc/universal_plot_dark.gif)
+
