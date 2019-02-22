@@ -8,7 +8,9 @@ python create_executable.py -f <filename.py>
 Executable will be in the created dist/ folder
 
 ## Rotational Controller GUI
-![](/doc/rotational_controller.gif)
+Controls rotational controller with precise movement velocity, acceleration, and positional accuracy. 
+
+![light](/doc/rotational_controller.gif) ![dark](/doc/rotational_controller_dark.gif)
 
 Controls rotational controller. Run servers in background:
 ```
