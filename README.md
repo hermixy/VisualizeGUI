@@ -10,7 +10,10 @@ Executable will be in the created dist/ folder
 ## Rotational Controller GUI
 Controls rotational controller with precise movement velocity, acceleration, and positional accuracy. 
 
-![light](/doc/rotational_controller.gif) ![dark](/doc/rotational_controller_dark.gif)
+<p float="left">
+    <img src="/doc/rotational_controller.gif" width='150'/>
+    <img src="/doc/rotational_controller_dark.gif" width='150'/>
+</p>
 
 Controls rotational controller. Run servers in background:
 ```
