@@ -11,8 +11,8 @@ Executable will be in the created dist/ folder
 Controls rotational controller with precise movement velocity, acceleration, and positional accuracy. 
 
 <p float="left">
-    <img src="/doc/rotational_controller.gif" width='150'/>
-    <img src="/doc/rotational_controller_dark.gif" width='150'/>
+    <img src="/doc/rotational_controller.gif" width='445'/>
+    <img src="/doc/rotational_controller_dark.gif" width='445'/>
 </p>
 
 Controls rotational controller. Run servers in background:
