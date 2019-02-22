@@ -814,7 +814,7 @@ class NonScientific(pg.AxisItem):
 
     def tickStrings(self, values, scale, spacing):
         # Return nonscientific notation
-        return [int(value*1) for value in values]
+        return [float(value*1) for value in values]
 
 class UniversalPlotWidget(QtGui.QWidget):
     """Universal realtime plotter for a data stream coming over a ZMQ port
@@ -843,7 +843,7 @@ class UniversalPlotWidget(QtGui.QWidget):
         
         self.DATA_POINTS_TO_DISPLAY = 1000
         self.MINIMUM_DATA_POINTS = 10
-        self.MAXIMUM_DATA_POINTS = 5000
+        self.MAXIMUM_DATA_POINTS = 20000
 
         # Screen refresh rate to update plot (ms)
         # self.UNIVERSAL_PLOT_REFRESH_RATE  = 1 / Desired Frequency (Hz) * 1000
@@ -892,7 +892,7 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.universal_plot_slider.setMinimum(self.MINIMUM_DATA_POINTS)
         self.universal_plot_slider.setMaximum(self.MAXIMUM_DATA_POINTS)
         self.universal_plot_slider.setValue(self.DATA_POINTS_TO_DISPLAY)
-        self.universal_plot_slider.setTickPosition(QtGui.QSlider.TicksBelow)
+        #self.universal_plot_slider.setTickPosition(QtGui.QSlider.TicksBelow)
         self.universal_plot_slider.setSingleStep(100)
 
         # LCD Color palette
