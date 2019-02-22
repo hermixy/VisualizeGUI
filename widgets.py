@@ -814,7 +814,7 @@ class NonScientific(pg.AxisItem):
 
     def tickStrings(self, values, scale, spacing):
         # Return nonscientific notation
-        return [int(value*1) for value in values]
+        return [float(value*1) for value in values]
 
 class UniversalPlotWidget(QtGui.QWidget):
     """Universal realtime plotter for a data stream coming over a ZMQ port
@@ -844,7 +844,7 @@ class UniversalPlotWidget(QtGui.QWidget):
         
         self.DATA_POINTS_TO_DISPLAY = 1000
         self.MINIMUM_DATA_POINTS = 10
-        self.MAXIMUM_DATA_POINTS = 5000
+        self.MAXIMUM_DATA_POINTS = 20000
 
         # Screen refresh rate to update plot (ms)
         # self.UNIVERSAL_PLOT_REFRESH_RATE  = 1 / Desired Frequency (Hz) * 1000
@@ -905,14 +905,14 @@ class UniversalPlotWidget(QtGui.QWidget):
 
     def initialize_header_data(self, data):
         """Obtain header information"""
-
         raw_curve_labels = [list(data[axis]['curve']) for axis in data if axis != 'x']
         self.curve_labels = [curve for sublist in raw_curve_labels for curve in sublist]
 
         self.curves = len(self.curve_labels)
         self.axis = len(data) - 1
-
+        print(data)
         for axis in data:
+            print(axis)
             if axis == 'y1':
                 self.y1_label = data['y1']['label']
                 self.y1_units = data['y1']['units']
@@ -941,7 +941,7 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.initialize_plots()
         self.initialize_plot_labels()
 
-        self.print_data(self.raw_plot_data)
+        #self.print_data(self.raw_plot_data)
 
     def initialize_data_buffers(self):
         """Create blank data buffers for each curve"""
