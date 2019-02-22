@@ -203,7 +203,7 @@ class RotationalControllerPlotWidget(QtGui.QWidget):
         self.rotational_plot_widget.setLabel('bottom', 'Time (s)')
 
         self.rotational_plot = self.rotational_plot_widget.plot()
-        self.rotational_plot.setPen(232,234,246)
+        self.rotational_plot.setPen('#5fba7d')
 
         self.layout = QtGui.QGridLayout()
         self.layout.addWidget(self.rotational_plot_widget)

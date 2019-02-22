@@ -1,66 +1,49 @@
-# VisualizeGUI
-
-## Build Executable
-Built executable file can be found in the dist/ folder
-```
-python create_executable.py -f <filename.py>
-```
-Executable will be in the created dist/ folder
-
 ## Rotational Controller GUI
 Controls rotational controller with precise movement velocity, acceleration, and positional accuracy. 
 
 <p float="left">
-    <img src="/doc/rotational_controller.gif" width='445'/>
-    <img src="/doc/rotational_controller_dark.gif" width='445'/>
+    <img src="/doc/rotational_controller_single_dark_hd.gif" width='900'/>
 </p>
 
 Controls rotational controller. Run servers in background:
 ```
-python rotational_controller_server.py COM#
-python rotational_plot_server.py
-python rotational_plot_server_alt.py
-python rotational_parameter_position_server.py
+python rotational_controller_server.py <COM#>
 ```
 
-rotational_controller_server is required. All others are optional.
-
-## Server List
-Symbols at end denote combinations
-
-Position (PUB/SUB)
-```
-rotational_parameter_position_server.py 6013 11000 *  <- Use if rotational_controller_server.py running
-rotational_parameter_position_server_alt.py 6011 10000 *
-```
-
-Parameters (PUB/SUB)
-```
-rotational_parameter_position_server.py 6012 = ^
-rotational_parameter_position_server_alt.py 6010  =
-```
-
-Plot (REQUEST/REPLY)
-```
-rotational_plot_server.py 6002 10001 -
-rotational_plot_server_alt.py 6009 10009 -
-```
+#### Rotational Controller Server Settings
 
 Motor Control (Position, PUB/SUB)
 ```
-rotational_controller_server.py 6011 10000 *
-rotational_controller_server_alt.py 6013 10000
+Port: 6011
+Topic: 10000
 ```
 
 Motor Control (Parameter, REQ/REP)
 ```
-rotational_controller_server.py 6010 10000 ^
-rotational_controller_server_alt.py 6012 10000
+Port: 6010
+Topic: 10000
 ```
 
-Switch rotational_parameter_position_server_alt.py for rotational_controller_server.py (One at a time)
+Example rotational.ini configuration file
+```
+[ROTATIONAL_CONTROLLER]
+position_frequency = .025
+position_address = tcp://192.168.1.143:6011
+parameter_address = tcp://192.168.1.143:6010
+position_topic = 10000
+```
 
 ## Universal Plot GUI
 
 ![](/doc/universal_plot_dark.gif)
+
+## GUI Widget Examples
+Look in /examples for individual GUI module components
+
+## Build Executable
+Built executable file can be found in the dist/ folder
+```
+python create_executable.py -f <GUI_filename.py>
+```
+Executable will be in the created dist/ folder
 

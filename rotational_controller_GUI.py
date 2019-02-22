@@ -1,6 +1,5 @@
 from PyQt4 import QtCore, QtGui 
 from PyQt4.QtGui import QSizePolicy
-from widgets import ZMQPlotWidget 
 from widgets import RotationalControllerPlotWidget 
 from widgets import PlotColorWidget 
 from load_CSS import load_CSS
@@ -19,10 +18,8 @@ Controls rotational controller with precise movement velocity,
 acceleration, and positional accuracy. Ensure rotational controller is 
 connected. rotational.ini is the configuraiton settings file.
 
-Run servers: rotational_parameter_position_server.py for parameter/position changes (OPTIONAL)
-             rotational_plot_server.py for ZMQ Plot (OPTIONAL)
-             rotational_plot_server_alt.py for change ZMQ Plot ability (OPTIONAL)
-             rotational_controller_server.py for rotational controller (REQUIRED) (switch for rotational_parameter_position_server_alt.py)
+Run servers: rotational_controller_server.py for rotational controller (REQUIRED)
+             rotational_parameter_position_server.py for parameter/position changes (OPTIONAL)
 """
 
 # =====================================================================
@@ -64,21 +61,6 @@ def read_settings():
             logging.exception("Invalid position_frequency value.")
             exit(1)
 
-        ZMQ_address = str(config['ZMQ_PLOT']['ZMQ_address']) 
-        ZMQ_topic = str(config['ZMQ_PLOT']['ZMQ_topic'])
-        # Checking ZMQ plot settings
-        try:
-            ZMQ_frequency = float(config['ZMQ_PLOT']['ZMQ_frequency'])
-            if ZMQ_frequency <= 0:
-                QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'ZMQ_frequency value cannot be zero or negative. Check rotational.ini')
-                logging.error('ZMQ_frequency value cannot be zero or negative.')
-                exit(1)
-        # Input was not a valid number 
-        except ValueError:
-            QtGui.QMessageBox.about(QtGui.QWidget(), 'Error', 'Invalid ZMQ_frequency value. Check rotational.ini')
-            logging.exception("Invalid ZMQ_frequency value.")
-            exit(1)
-    
     # Create empty default rotational.ini file if doesn't exist
     except KeyError:
         create_empty_settings_file()
@@ -108,9 +90,6 @@ def create_empty_settings_file():
                                        'position_topic': '',
                                        'position_frequency': '',
                                        'parameter_address': '' }
-    config['ZMQ_PLOT'] = {'ZMQ_address': '',
-                          'ZMQ_topic': '',
-                          'ZMQ_frequency': '' }
     with open('rotational.ini', 'w') as config_file:
         config.write(config_file)
 
@@ -135,7 +114,6 @@ def write_current_port_settings():
 
     global position_settings
     global parameter_settings
-    global ZMQ_plot_settings
     
     try:
         write_settings('ROTATIONAL_CONTROLLER', position_settings)
@@ -145,10 +123,6 @@ def write_current_port_settings():
         pass
     try:
         write_settings('ROTATIONAL_CONTROLLER', parameter_settings)
-    except NameError:
-        pass
-    try:
-        write_settings('ZMQ_PLOT', ZMQ_plot_settings)
     except NameError:
         pass
 
@@ -172,7 +146,6 @@ class PortSettingPopUpWidget(QtGui.QWidget):
 
     position: Reads current rotational controller value
     parameter: Sets velocity, position, and acceleration limits and allows communication to GUI
-    plot: ZMQ plot readings
     """
 
     def __init__(self, window_title, parent=None):
@@ -189,7 +162,6 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         self.tabs = QtGui.QTabWidget(self)
         self.position_tab = QtGui.QWidget()
         self.parameter_tab = QtGui.QWidget()
-        self.plot_tab = QtGui.QWidget()
         
         # Status bar message data and data wait time in seconds
         self.status = ()
@@ -238,33 +210,9 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         self.parameter_layout.addRow(self.parameter_button_layout)
         self.parameter_tab.setLayout(self.parameter_layout)
 
-        # Plot
-        self.plot_layout = QtGui.QFormLayout()
-        self.plot_TCPAddress = QtGui.QLineEdit()
-        self.plot_TCPAddress.setMaxLength(15)
-        self.plot_TCPPort = QtGui.QLineEdit()
-        self.plot_TCPPort.setValidator(QtGui.QIntValidator())
-        self.plot_TCPTopic = QtGui.QLineEdit()
-        self.plot_TCPTopic.setValidator(QtGui.QIntValidator())
-        self.plot_button_layout = QtGui.QHBoxLayout()
-        self.plot_connect_button = QtGui.QPushButton('Connect')
-        self.plot_connect_button.setStyleSheet('background-color: #3CB371')
-        self.plot_connect_button.clicked.connect(self.plot_save_button)
-        self.plot_stop_button = QtGui.QPushButton('Cancel')
-        self.plot_stop_button.clicked.connect(self.plot_cancel_button)
-        self.plot_button_layout.addWidget(self.plot_connect_button)
-        self.plot_button_layout.addWidget(self.plot_stop_button)
-
-        self.plot_layout.addRow("TCP Address", self.plot_TCPAddress)
-        self.plot_layout.addRow("Port", self.plot_TCPPort)
-        self.plot_layout.addRow("Topic", self.plot_TCPTopic)
-        self.plot_layout.addRow(self.plot_button_layout)
-        self.plot_tab.setLayout(self.plot_layout)
-
         # Popup Layout
         self.tabs.addTab(self.position_tab, 'Position')
         self.tabs.addTab(self.parameter_tab, 'Parameters')
-        self.tabs.addTab(self.plot_tab, 'Plot')
          
         self.setWindowModality(QtCore.Qt.ApplicationModal)
         self.show()
@@ -404,63 +352,6 @@ class PortSettingPopUpWidget(QtGui.QWidget):
         global rotational_controller_plot
         parameter_context, parameter_socket = rotational_controller_plot.update_parameter_plot_address(address)
         parameter_update()
-
-    def plot_save_button(self):
-        """Parses plot input and sets port if validated"""
-
-        address = str(self.plot_TCPAddress.text())
-        port = str(self.plot_TCPPort.text())
-        topic = str(self.plot_TCPTopic.text())
-        Thread(target=self.plot_check_valid_port, args=(address,port,topic)).start()
-        self.close()
-        
-    def plot_cancel_button(self):
-        """Cancel plot port change operation"""
-
-        self.status = ()
-        self.close()
-
-    def plot_check_valid_port(self, address, port, topic):
-        """Opens a ZMQ socket connection and checks if valid port"""
-
-        global plot
-        global plot_status
-        global ZMQ_plot_settings
-        
-        logging.info("Attempt to connect to new plot port")
-        if address and port and topic:
-            new_plot_address = "tcp://" + address + ":" + port
-            if plot.get_ZMQ_plot_address() != new_plot_address or plot.get_ZMQ_topic() != topic:
-                context = zmq.Context()
-                socket = context.socket(zmq.SUB)
-                socket.connect(new_plot_address)
-                socket.setsockopt(zmq.SUBSCRIBE, topic)
-                # Check for valid data within time interval in seconds (s)
-                time_end = time.time() + self.DATA_TIMEOUT
-                while time.time() < time_end:
-                    try:
-                        topic, data = socket.recv(zmq.NOBLOCK).split()
-                        plot.update_ZMQ_plot_address(new_plot_address, topic)
-                        if not plot.get_verified():
-                            plot.set_verified(True)
-                        ZMQ_plot_settings = {'ZMQ_address': new_plot_address, 'ZMQ_topic': topic}
-                        write_settings('ZMQ_PLOT', ZMQ_plot_settings) 
-                        self.status = ('success', new_plot_address)
-                        plot_status.setStyleSheet(self.style_setting_valid)
-                        logging.info('Successfully connected to plot port with address:{}, port:{}, topic:{}'.format(address, port, topic))
-                        return
-                    except zmq.ZMQError, e:
-                        # No data arrived
-                        if e.errno == zmq.EAGAIN:
-                            pass
-                self.status = ('fail', new_plot_address)
-                logging.info('Failed to connect to plot port with address:{}, port:{}, topic:{}'.format(address, port, topic))
-            else:
-                self.status = ('same', new_plot_address)
-                logging.info('Already connected to plot port with address:{}, port:{}, topic:{}'.format(address, port, topic))
-        else:
-            self.status = ('fail', plot.get_ZMQ_plot_address())
-            logging.info('Failed to connect to plot port. Empty settings')
 
 # =====================================================================
 # Status bar message timer widget
@@ -690,8 +581,6 @@ def initialize_status_colors():
 
     global position_status
     global parameter_status 
-    global plot_status
-    global plot
     global rotational_controller_plot
 
     style_setting_valid = "border-radius: 6px; padding:5px; background-color: #5fba7d"
@@ -710,13 +599,6 @@ def initialize_status_colors():
     else:
         parameter_status.setStyleSheet(style_setting_invalid)
         logging.info('Failed to connect to parameter socket')
-
-    if plot.get_verified():
-        plot_status.setStyleSheet(style_setting_valid)
-        logging.info('Successfully connected to plot socket')
-    else:
-        plot_status.setStyleSheet(style_setting_invalid)
-        logging.info('Failed to connect to plot socket')
 
 def initialize_global_variables():
     """Initialize socket connections and parameter settings"""
@@ -746,11 +628,9 @@ def initialize_global_variables():
 def clear_plots():
     """Clear plot data"""
 
-    global plot
     global rotational_controller_plot
     global status_bar
 
-    plot.clear_ZMQ_plot()
     rotational_controller_plot.clear_rotational_controller_plot()
     logging.info("Cleared plots")
     status_bar.showMessage('Plots cleared', 4000)
@@ -797,8 +677,7 @@ status_bar = QtGui.QStatusBar()
 mw.setStatusBar(status_bar)
 status_bar.setSizeGripEnabled(False)
 
-# Create ZMQ plot and rotational controller plot
-plot = ZMQPlotWidget(ZMQ_address, ZMQ_topic, ZMQ_frequency)
+# Create rotational controller plot
 rotational_controller_plot = RotationalControllerPlotWidget(position_address, position_topic, position_frequency, parameter_address)
 
 initialize_global_variables()
@@ -813,15 +692,14 @@ l = QtGui.QGridLayout()
 
 # Prevent window from being maximized
 #mw.setFixedSize(cw.size())
-mw.setFixedSize(700,550)
+mw.setFixedSize(900,320)
 
 # Enable zoom in for selected box region
 pg.setConfigOption('leftButtonPan', False)
 
 # Arrange widget layouts
 ml.addLayout(l,0,0,1,1)
-ml.addWidget(plot.get_ZMQ_plot_widget(),1,0,1,1)
-ml.addWidget(rotational_controller_plot.get_rotational_controller_plot_widget(),0,1,2,1)
+ml.addWidget(rotational_controller_plot.get_rotational_controller_plot_widget(),0,1,1,1)
 mw.setSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
 
 # Menubar/Toolbar
@@ -868,11 +746,6 @@ clear_graph_action.setStatusTip('Clear current plot views')
 clear_graph_action.triggered.connect(clear_plots)
 display_menu.addAction(clear_graph_action)
 
-change_ZMQ_plot_color_action = QtGui.QAction('Change ZMQ Plot Color', mw)
-change_ZMQ_plot_color_action.setStatusTip('Change ZMQ plot color')
-change_ZMQ_plot_color_action.triggered.connect(lambda: change_plot_color(plot))
-display_menu.addAction(change_ZMQ_plot_color_action)
-
 change_rotational_controller_plot_color_action = QtGui.QAction('Change Rotational Controller Plot Color ', mw)
 change_rotational_controller_plot_color_action.setStatusTip('Change rotational controller plot color')
 change_rotational_controller_plot_color_action.triggered.connect(lambda: change_plot_color(rotational_controller_plot))
@@ -903,8 +776,6 @@ position_status = QtGui.QLabel('Position')
 position_status.setAlignment(QtCore.Qt.AlignCenter)
 parameter_status = QtGui.QLabel('Parameter')
 parameter_status.setAlignment(QtCore.Qt.AlignCenter)
-plot_status = QtGui.QLabel('Plot')
-plot_status.setAlignment(QtCore.Qt.AlignCenter)
 
 port_settings = QtGui.QPushButton('IP/Port Settings')
 port_settings.clicked.connect(change_IP_port_settings_button)
@@ -945,7 +816,6 @@ preset_label.setText('Presets')
 presets = QtGui.QComboBox()
 presets.activated.connect(preset_settings_update)
 preset_name = QtGui.QLineEdit()
-preset_name.setFixedWidth(80)
 preset_name.setPlaceholderText("Preset name")
 preset_button = QtGui.QPushButton('Add Preset')
 preset_button.clicked.connect(add_preset_settings_button)
@@ -958,10 +828,12 @@ parameter_update()
 initialize_status_colors()
 
 # Layout
+status_label_layout = QtGui.QHBoxLayout()
+status_label_layout.addWidget(position_status)
+status_label_layout.addWidget(parameter_status)
+
 l.addWidget(status_label,0,0,1,1)
-l.addWidget(position_status,0,1,1,1)
-l.addWidget(parameter_status,0,2,1,1)
-l.addWidget(plot_status,0,3,1,1)
+l.addLayout(status_label_layout,0,1,1,3)
 
 l.addWidget(port_settings,1,0,1,4)
 l.addWidget(velocity_label,2,0,1,2)
