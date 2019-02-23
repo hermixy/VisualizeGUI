@@ -1,6 +1,8 @@
 from PyQt4 import QtCore, QtGui
 from utility import decode_image_from_base64, placeholder_image
 from collections import deque
+import configparser
+import os
 import imutils
 import pyqtgraph as pg
 import json
@@ -12,6 +14,7 @@ import time
 from threading import Thread
 import cv2
 import timeit
+import logging
 
 """Modular widget classes 
 
@@ -838,8 +841,6 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.verified = False
         self.DATA_TIMEOUT = 1
         self.SPACING = 1
-        self.plot_address = 'tcp://192.168.1.143:6020'
-        self.plot_topic = '20000'
         
         self.DATA_POINTS_TO_DISPLAY = 1000
         self.MINIMUM_DATA_POINTS = 10
@@ -851,15 +852,10 @@ class UniversalPlotWidget(QtGui.QWidget):
 
         # Create Universal Plot Widget
         self.universal_plot_widget = pg.PlotWidget(axisItems={'left': NonScientific(orientation='left'), 'right': NonScientific(orientation='right')})
-        self.initial_check_valid_port()
 
         # Plot settings
         self.universal_plot_widget.plotItem.setMouseEnabled(x=False, y=False)
         self.universal_plot_widget.setTitle('Universal Plot')
-        self.left_axis_label_style = {'color': '#e3e3e3', 'font-size': '11pt'}
-        self.bottom_axis_label_style = {'color': '#e3e3e3', 'font-size': '11pt'}
-        self.universal_plot_widget.setLabel('left', self.y1_label, units=self.y1_units, **self.left_axis_label_style)
-        self.universal_plot_widget.setLabel('bottom', self.x_label, units=self.x_units, **self.bottom_axis_label_style)
         self.universal_plot_widget.plotItem.getAxis('bottom').enableAutoSIPrefix(False)
         self.universal_plot_widget.plotItem.getAxis('left').enableAutoSIPrefix(False)
 
@@ -871,9 +867,13 @@ class UniversalPlotWidget(QtGui.QWidget):
 
         # Layout
         self.layout = QtGui.QGridLayout()
+        self.plot_color_label_layout = QtGui.QGridLayout()
+
         self.layout.addWidget(self.universal_plot_widget,0,0,1,0)
         self.layout.addLayout(self.slider_layout,1,0,1,0)
         self.layout.addLayout(self.plot_color_label_layout,2,0,1,0)
+
+        self.read_initial_settings()
 
         self.buffer_size = 0
         self.universal_plot_timer = QtCore.QTimer()
@@ -976,8 +976,6 @@ class UniversalPlotWidget(QtGui.QWidget):
     def initialize_plot_labels(self):
         """Create color plot labels"""
 
-        self.plot_color_label_layout = QtGui.QGridLayout()
-
         self.left_plots_layout = QtGui.QHBoxLayout()
         self.left_color_labels = QtGui.QLabel('Left Plots  ')
         self.left_color_labels.setFixedSize(65,25)
@@ -1010,6 +1008,11 @@ class UniversalPlotWidget(QtGui.QWidget):
         if self.axis == 2:
             self.plot_color_label_layout.addLayout(self.right_plots_layout,1,0,1,1)
         
+        # Set axis labels
+        self.left_axis_label_style = {'color': '#e3e3e3', 'font-size': '11pt'}
+        self.bottom_axis_label_style = {'color': '#e3e3e3', 'font-size': '11pt'}
+        self.universal_plot_widget.setLabel('left', self.y1_label, units=self.y1_units, **self.left_axis_label_style)
+        self.universal_plot_widget.setLabel('bottom', self.x_label, units=self.x_units, **self.bottom_axis_label_style)
     def initial_check_valid_port(self):
         """Attempts to establish initial ZMQ socket connection"""
 
@@ -1168,4 +1171,29 @@ class UniversalPlotWidget(QtGui.QWidget):
 
     def print_data(self, data):
         print(json.dumps(data, indent=4, sort_keys=True))
+
+    def read_initial_settings(self):
+        """Read in plot settings from universal_plot.ini file, creates file if doesn't exist"""
+
+        self.save_settings = False
+        self.config_filename = 'universal_plot.ini'
+
+        # Read in each section and parse information
+        self.config = configparser.ConfigParser()
+        if os.path.exists(self.config_filename):
+            self.config.read(self.config_filename)
+            self.plot_address = str(self.config['UNIVERSAL_PLOT']['plot_address'])
+            self.plot_topic = str(self.config['UNIVERSAL_PLOT']['plot_topic'])
+            self.initial_check_valid_port()
+        # Create config file if doesn't exist
+        else:
+            self.create_empty_settings_file()
+
+    def create_empty_settings_file(self):
+        """Create empty configuration file if doesn't exist"""
+
+        self.config['UNIVERSAL_PLOT'] = {'plot_address': '',
+                                         'plot_topic': ''}
+        with open(self.config_filename, 'w') as config_file:
+            self.config.write(config_file)
 
