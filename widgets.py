@@ -864,14 +864,24 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.slider_layout = QtGui.QGridLayout()
         self.slider_layout.addWidget(self.universal_plot_slider_LCD,0,0,1,1)
         self.slider_layout.addWidget(self.universal_plot_slider,0,1,1,1)
+        
+        self.connection_layout = QtGui.QHBoxLayout()
+        self.connection_status = QtGui.QLabel('Connection Status: ')
+        self.connection_status.setFixedSize(100,20)
+        self.connection_message = QtGui.QLabel()
+        self.connection_message.setAlignment(QtCore.Qt.AlignCenter)
+        self.connection_message.setFixedHeight(25)
+        self.connection_layout.addWidget(self.connection_status)
+        self.connection_layout.addWidget(self.connection_message)
 
         # Layout
         self.layout = QtGui.QGridLayout()
         self.plot_color_label_layout = QtGui.QGridLayout()
-
-        self.layout.addWidget(self.universal_plot_widget,0,0,1,0)
-        self.layout.addLayout(self.slider_layout,1,0,1,0)
-        self.layout.addLayout(self.plot_color_label_layout,2,0,1,0)
+        
+        self.layout.addLayout(self.connection_layout,0,0,1,0)
+        self.layout.addWidget(self.universal_plot_widget,1,0,1,0)
+        self.layout.addLayout(self.slider_layout,2,0,1,0)
+        self.layout.addLayout(self.plot_color_label_layout,3,0,1,0)
 
         self.read_initial_settings()
 
@@ -934,13 +944,25 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.data_buffers = {}
         self.universal_plots = {}
         self.plot_data = {}
-
+        
         self.initialize_header_data(self.raw_plot_data)
         self.initialize_data_buffers()
         self.initialize_plots()
         self.initialize_plot_labels()
 
         self.print_data(self.raw_plot_data)
+    
+    def set_connection_status(self, value):
+        """Displays port connection status label"""
+
+        self.style_setting_valid = "border-radius: 6px; padding:5px; background-color: #5fba7d"
+        self.style_setting_invalid  = "border-radius: 6px; padding:5px; background-color: #f78380"
+        if value:
+            self.connection_message.setText('Successfully connected to: {}, {}'.format(self.plot_address, self.plot_topic))
+            self.connection_message.setStyleSheet(self.style_setting_valid)
+        else:
+            self.connection_message.setText('Failed to connect to: {}, {}'.format(self.plot_address, self.plot_topic))
+            self.connection_message.setStyleSheet(self.style_setting_invalid)
 
     def initialize_data_buffers(self):
         """Create blank data buffers for each curve"""
@@ -1037,6 +1059,8 @@ class UniversalPlotWidget(QtGui.QWidget):
         # Invalid argument
         except zmq.ZMQError, e:
             self.verified = False
+        print(self.plot_address, self.plot_topic)
+        self.set_connection_status(False)
 
     def create_right_axis(self):
         """Initialize right axis viewbox and link to left coordinate system"""
@@ -1075,6 +1099,7 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.plot_socket = self.plot_context.socket(zmq.SUB)
         self.plot_socket.connect(self.plot_address)
         self.plot_socket.setsockopt(zmq.SUBSCRIBE, self.plot_topic)
+        self.set_connection_status(True)
 
     def update_universal_plot(self):
         """Reads data point from socket and updates plot buffers"""
