@@ -11,6 +11,7 @@ import zmq
 import numpy as np
 import sys
 import time
+from pyqtgraph.ptime import time as pyqt_time
 from threading import Thread
 import cv2
 import timeit
@@ -47,7 +48,7 @@ class ZMQPlotWidget(QtGui.QWidget):
         # Screen refresh rate to update plot (ms)
         # USE FOR TIMER.TIMER (ms)
         # self.ZMQ_PLOT_REFRESH_RATE = 1 / Desired Frequency (Hz) * 1000
-        self.ZMQ_PLOT_REFRESH_RATE = 7
+        self.ZMQ_PLOT_REFRESH_RATE = 40
 
         self.DATA_TIMEOUT = 1
 
@@ -858,6 +859,7 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.universal_plot_widget.setTitle('Universal Plot')
         self.universal_plot_widget.plotItem.getAxis('bottom').enableAutoSIPrefix(False)
         self.universal_plot_widget.plotItem.getAxis('left').enableAutoSIPrefix(False)
+        self.universal_plot_widget.plotItem.setClipToView(True)
 
         self.initialize_LCD_display_slider()
         
@@ -871,8 +873,15 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.connection_message = QtGui.QLabel()
         self.connection_message.setAlignment(QtCore.Qt.AlignCenter)
         self.connection_message.setFixedHeight(25)
+
+        self.FPS_label = QtGui.QLabel()
         self.connection_layout.addWidget(self.connection_status)
         self.connection_layout.addWidget(self.connection_message)
+        self.connection_layout.addWidget(self.FPS_label)
+
+        # FPS
+        self.last_time = pyqt_time()
+        self.fps = None
 
         # Layout
         self.layout = QtGui.QGridLayout()
@@ -888,7 +897,10 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.buffer_size = 0
         self.universal_plot_timer = QtCore.QTimer()
         self.universal_plot_timer.timeout.connect(self.update_universal_plot)
-        self.universal_plot_timer.start(self.get_universal_plot_refresh_rate())
+        # self.universal_plot_timer.start(self.get_universal_plot_refresh_rate())
+        self.universal_plot_timer.start(0)
+
+        
 
     def initialize_LCD_display_slider(self):
         """Create variable x-axis windowing for last n amount of data points"""
@@ -991,6 +1003,7 @@ class UniversalPlotWidget(QtGui.QWidget):
                 new_plot = self.universal_plot_widget.plot()
             elif curve in self.y2_curves and self.axis == 2:
                 new_plot = pg.PlotDataItem()
+                new_plot.setClipToView(True)
                 self.right_axis.addItem(new_plot)
             new_plot.setPen(self.plot_color_table[curve], width=1)
             self.universal_plots[curve] = new_plot
@@ -1132,6 +1145,7 @@ class UniversalPlotWidget(QtGui.QWidget):
                                 # Only update x-axis on last curve to prevent redundancy
                                 if curve_number == self.curves - 1:
                                     self.universal_plot_widget.setXRange(x_axis[(len(x_axis) - self.DATA_POINTS_TO_DISPLAY)], x_axis[-1])
+                        self.updateFPS()
                     break
 
     def calculate_aspect_ratio_value(self, buffer_size, x_axis_left, x_axis_right):
@@ -1221,4 +1235,17 @@ class UniversalPlotWidget(QtGui.QWidget):
                                          'plot_topic': ''}
         with open(self.config_filename, 'w') as config_file:
             self.config.write(config_file)
+
+    def updateFPS(self):
+        """Plot FPS"""
+
+        now = pyqt_time()
+        dt = now - self.last_time
+        self.last_time = now
+        if self.fps is None:
+            self.fps = 1.0/dt
+        else:
+            s = np.clip(dt*3.,0,1)
+            self.fps = self.fps * (1-s) + (1.0/dt) * s
+        self.FPS_label.setText('%0.2f' % self.fps)
 
