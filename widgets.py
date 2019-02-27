@@ -860,6 +860,7 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.universal_plot_widget.plotItem.getAxis('bottom').enableAutoSIPrefix(False)
         self.universal_plot_widget.plotItem.getAxis('left').enableAutoSIPrefix(False)
         self.universal_plot_widget.plotItem.setClipToView(True)
+        self.universal_plot_widget.plotItem.setDownsampling(auto=True)
 
         self.initialize_LCD_display_slider()
         
@@ -867,17 +868,21 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.slider_layout.addWidget(self.universal_plot_slider_LCD,0,0,1,1)
         self.slider_layout.addWidget(self.universal_plot_slider,0,1,1,1)
         
-        self.connection_layout = QtGui.QHBoxLayout()
+        self.connection_layout = QtGui.QGridLayout()
         self.connection_status = QtGui.QLabel('Connection Status: ')
-        self.connection_status.setFixedSize(100,20)
         self.connection_message = QtGui.QLabel()
         self.connection_message.setAlignment(QtCore.Qt.AlignCenter)
         self.connection_message.setFixedHeight(25)
 
-        self.FPS_label = QtGui.QLabel()
-        self.connection_layout.addWidget(self.connection_status)
-        self.connection_layout.addWidget(self.connection_message)
-        self.connection_layout.addWidget(self.FPS_label)
+        self.FPS_layout = QtGui.QGridLayout()
+        self.FPS_value = QtGui.QLabel()
+        self.FPS_layout.addWidget(self.FPS_value,0,0,1,1)
+        self.FPS_value.setAlignment(QtCore.Qt.AlignRight)
+        self.FPS_value.setFixedHeight(16)
+
+        self.connection_layout.addWidget(self.connection_status,0,0,1,1)
+        self.connection_layout.addWidget(self.connection_message,0,1,1,1)
+        self.connection_layout.addLayout(self.FPS_layout,0,2,1,15)
 
         # FPS
         self.last_time = pyqt_time()
@@ -899,8 +904,6 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.universal_plot_timer.timeout.connect(self.update_universal_plot)
         # self.universal_plot_timer.start(self.get_universal_plot_refresh_rate())
         self.universal_plot_timer.start(0)
-
-        
 
     def initialize_LCD_display_slider(self):
         """Create variable x-axis windowing for last n amount of data points"""
@@ -1002,8 +1005,8 @@ class UniversalPlotWidget(QtGui.QWidget):
             if curve in self.y1_curves or self.axis == 1:
                 new_plot = self.universal_plot_widget.plot()
             elif curve in self.y2_curves and self.axis == 2:
-                new_plot = pg.PlotDataItem()
-                new_plot.setClipToView(True)
+                new_plot = pg.PlotDataItem(antialias=False, clipToView=True)
+                new_plot.setDownsampling(auto=True)
                 self.right_axis.addItem(new_plot)
             new_plot.setPen(self.plot_color_table[curve], width=1)
             self.universal_plots[curve] = new_plot
@@ -1247,5 +1250,5 @@ class UniversalPlotWidget(QtGui.QWidget):
         else:
             s = np.clip(dt*3.,0,1)
             self.fps = self.fps * (1-s) + (1.0/dt) * s
-        self.FPS_label.setText('%0.2f' % self.fps)
+        self.FPS_value.setText('FPS   %0.2f' % self.fps)
 
