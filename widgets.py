@@ -1,6 +1,5 @@
 from PyQt4 import QtCore, QtGui
 from utility import decode_image_from_base64, placeholder_image
-from collections import deque
 import configparser
 import os
 import imutils
@@ -843,7 +842,7 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.DATA_TIMEOUT = 1
         self.SPACING = 1
         
-        self.DATA_POINTS_TO_DISPLAY = 1000
+        self.DATA_POINTS_TO_DISPLAY = 500
         self.MINIMUM_DATA_POINTS = 10
         self.MAXIMUM_DATA_POINTS = 20000
 
@@ -859,7 +858,7 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.universal_plot_widget.setTitle('Universal Plot')
         self.universal_plot_widget.plotItem.getAxis('bottom').enableAutoSIPrefix(False)
         self.universal_plot_widget.plotItem.getAxis('left').enableAutoSIPrefix(False)
-        self.universal_plot_widget.plotItem.setClipToView(True)
+        # self.universal_plot_widget.plotItem.setClipToView(True)
         self.universal_plot_widget.plotItem.setDownsampling(auto=True)
 
         self.initialize_LCD_display_slider()
@@ -956,7 +955,8 @@ class UniversalPlotWidget(QtGui.QWidget):
         # Confirmed valid ZMQ plot settings so can use blocking recv
         topic, self.raw_plot_data = self.deserialize(self.plot_socket.recv())
         
-        self.data_buffers = {}
+        self.data_buffers_x = {}
+        self.data_buffers_y = {}
         self.universal_plots = {}
         self.plot_data = {}
         
@@ -982,9 +982,9 @@ class UniversalPlotWidget(QtGui.QWidget):
     def initialize_data_buffers(self):
         """Create blank data buffers for each curve"""
 
-        # Automatically pops from left if length is full
         for curve in self.curve_labels:
-            self.data_buffers[curve] = deque(maxlen=self.MAXIMUM_DATA_POINTS)
+            self.data_buffers_x[curve] = [] 
+            self.data_buffers_y[curve] = []
 
     def initialize_plots(self):
         """Create curve with random RBG color
@@ -1005,7 +1005,7 @@ class UniversalPlotWidget(QtGui.QWidget):
             if curve in self.y1_curves or self.axis == 1:
                 new_plot = self.universal_plot_widget.plot()
             elif curve in self.y2_curves and self.axis == 2:
-                new_plot = pg.PlotDataItem(antialias=False, clipToView=True)
+                new_plot = pg.PlotDataItem(antialias=False)
                 new_plot.setDownsampling(auto=True)
                 self.right_axis.addItem(new_plot)
             new_plot.setPen(self.plot_color_table[curve], width=1)
@@ -1127,27 +1127,29 @@ class UniversalPlotWidget(QtGui.QWidget):
                     self.topic, self.raw_plot_data = self.deserialize(self.plot_socket.recv(zmq.NOBLOCK))
                     self.update_plot_data_table(self.raw_plot_data)
                     for curve in self.curve_labels:
-                        self.data_buffers[curve].append({'x': float(self.plot_data[curve]['x']), 'y': float(self.plot_data[curve]['y'])})
-                        self.buffer_size = len(self.data_buffers[curve])
+                        if len(self.data_buffers_x[curve]) >= self.MAXIMUM_DATA_POINTS:
+                            self.data_buffers_x[curve].pop(0)
+                            self.data_buffers_y[curve].pop(0)
+                        self.data_buffers_x[curve].append(float(self.plot_data[curve]['x']))
+                        self.data_buffers_y[curve].append(float(self.plot_data[curve]['y']))
+                        self.buffer_size = len(self.data_buffers_x[curve])
                 # No data arrived from socket (buffer is empty) so put data onto plot
                 except zmq.ZMQError, e:
                     if e.errno == zmq.EAGAIN:
                         for curve_number, curve in enumerate(self.curve_labels):
-                            x_axis = [item['x'] for item in self.data_buffers[curve]]
-                            y_axis = [item['y'] for item in self.data_buffers[curve]]
                             # Display entire buffer
-                            if len(self.data_buffers[curve]) <= self.DATA_POINTS_TO_DISPLAY + 1:
-                                self.universal_plots[curve].setData(x_axis, y_axis)
+                            if len(self.data_buffers_x[curve]) <= self.DATA_POINTS_TO_DISPLAY + 1:
+                                self.universal_plots[curve].setData(self.data_buffers_x[curve], self.data_buffers_y[curve])
                                 # Only update x-axis on last curve to prevent redundancy
                                 if curve_number == self.curves - 1:
-                                    self.aspect_ratio = self.calculate_aspect_ratio_value(self.buffer_size, x_axis[0], x_axis[-1])
-                                    self.universal_plot_widget.setXRange(x_axis[0] - self.aspect_ratio, x_axis[-1])
+                                    self.aspect_ratio = self.calculate_aspect_ratio_value(self.buffer_size, self.data_buffers_x[curve][0], self.data_buffers_x[curve][-1])
+                                    self.universal_plot_widget.setXRange(self.data_buffers_x[curve][0] - self.aspect_ratio, self.data_buffers_x[curve][-1])
                             # Truncate recent data subset depending on number of points to display
                             else:
-                                self.universal_plots[curve].setData(x_axis[(len(x_axis) - self.DATA_POINTS_TO_DISPLAY):], y_axis[(len(y_axis) - self.DATA_POINTS_TO_DISPLAY):])
+                                self.universal_plots[curve].setData(self.data_buffers_x[curve][(len(self.data_buffers_x[curve]) - self.DATA_POINTS_TO_DISPLAY):], self.data_buffers_y[curve][(len(self.data_buffers_y[curve]) - self.DATA_POINTS_TO_DISPLAY):])
                                 # Only update x-axis on last curve to prevent redundancy
                                 if curve_number == self.curves - 1:
-                                    self.universal_plot_widget.setXRange(x_axis[(len(x_axis) - self.DATA_POINTS_TO_DISPLAY)], x_axis[-1])
+                                    self.universal_plot_widget.setXRange(self.data_buffers_x[curve][(len(self.data_buffers_x[curve]) - self.DATA_POINTS_TO_DISPLAY)], self.data_buffers_x[curve][-1])
                         self.updateFPS()
                     break
 
