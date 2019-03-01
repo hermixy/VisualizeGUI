@@ -1136,22 +1136,34 @@ class UniversalPlotWidget(QtGui.QWidget):
                 # No data arrived from socket (buffer is empty) so put data onto plot
                 except zmq.ZMQError, e:
                     if e.errno == zmq.EAGAIN:
-                        for curve_number, curve in enumerate(self.curve_labels):
-                            # Display entire buffer
-                            if len(self.data_buffers_x[curve]) <= self.DATA_POINTS_TO_DISPLAY + 1:
-                                self.universal_plots[curve].setData(self.data_buffers_x[curve], self.data_buffers_y[curve])
-                                # Only update x-axis on last curve to prevent redundancy
-                                if curve_number == self.curves - 1:
-                                    self.aspect_ratio = self.calculate_aspect_ratio_value(self.buffer_size, self.data_buffers_x[curve][0], self.data_buffers_x[curve][-1])
-                                    self.universal_plot_widget.setXRange(self.data_buffers_x[curve][0] - self.aspect_ratio, self.data_buffers_x[curve][-1])
-                            # Truncate recent data subset depending on number of points to display
-                            else:
-                                self.universal_plots[curve].setData(self.data_buffers_x[curve][(len(self.data_buffers_x[curve]) - self.DATA_POINTS_TO_DISPLAY):], self.data_buffers_y[curve][(len(self.data_buffers_y[curve]) - self.DATA_POINTS_TO_DISPLAY):])
-                                # Only update x-axis on last curve to prevent redundancy
-                                if curve_number == self.curves - 1:
-                                    self.universal_plot_widget.setXRange(self.data_buffers_x[curve][(len(self.data_buffers_x[curve]) - self.DATA_POINTS_TO_DISPLAY)], self.data_buffers_x[curve][-1])
+                        self.update_plot_data()
                         self.updateFPS()
                     break
+
+    def update_plot_data(self): 
+        def update_plot_data_thread(curve_number, curve):
+            # Display entire buffer
+            if len(self.data_buffers_x[curve]) <= self.DATA_POINTS_TO_DISPLAY + 1:
+                self.universal_plots[curve].setData(self.data_buffers_x[curve], self.data_buffers_y[curve])
+                # Only update x-axis on last curve to prevent redundancy
+                if curve_number == self.curves - 1:
+                    self.aspect_ratio = self.calculate_aspect_ratio_value(self.buffer_size, self.data_buffers_x[curve][0], self.data_buffers_x[curve][-1])
+                    self.universal_plot_widget.setXRange(self.data_buffers_x[curve][0] - self.aspect_ratio, self.data_buffers_x[curve][-1])
+            # Truncate recent data subset depending on number of points to display
+            else:
+                self.universal_plots[curve].setData(self.data_buffers_x[curve][(len(self.data_buffers_x[curve]) - self.DATA_POINTS_TO_DISPLAY):], self.data_buffers_y[curve][(len(self.data_buffers_y[curve]) - self.DATA_POINTS_TO_DISPLAY):])
+                # Only update x-axis on last curve to prevent redundancy
+                if curve_number == self.curves - 1:
+                    self.universal_plot_widget.setXRange(self.data_buffers_x[curve][(len(self.data_buffers_x[curve]) - self.DATA_POINTS_TO_DISPLAY)], self.data_buffers_x[curve][-1])
+        
+        self.data_buffer_threads = []
+        for curve_number, curve in enumerate(self.curve_labels):
+            thread = Thread(target=update_plot_data_thread, args=(curve_number, curve))
+            thread.daemon = True
+            self.data_buffer_threads.append(thread)
+            thread.start()
+        for t in self.data_buffer_threads:
+            t.join()
 
     def calculate_aspect_ratio_value(self, buffer_size, x_axis_left, x_axis_right):
         """Estimate point left point for setXRange function
