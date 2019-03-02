@@ -1051,6 +1051,7 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.bottom_axis_label_style = {'color': '#e3e3e3', 'font-size': '11pt'}
         self.universal_plot_widget.setLabel('left', self.y1_label, units=self.y1_units, **self.left_axis_label_style)
         self.universal_plot_widget.setLabel('bottom', self.x_label, units=self.x_units, **self.bottom_axis_label_style)
+
     def initial_check_valid_port(self):
         """Attempts to establish initial ZMQ socket connection"""
 
@@ -1141,7 +1142,9 @@ class UniversalPlotWidget(QtGui.QWidget):
                     break
 
     def update_plot_data(self): 
-        def update_plot_data_thread(curve_number, curve):
+        """Displays data buffer onto plot"""
+
+        for curve_number, curve in enumerate(self.curve_labels):
             # Display entire buffer
             if len(self.data_buffers_x[curve]) <= self.DATA_POINTS_TO_DISPLAY + 1:
                 self.universal_plots[curve].setData(self.data_buffers_x[curve], self.data_buffers_y[curve])
@@ -1156,15 +1159,6 @@ class UniversalPlotWidget(QtGui.QWidget):
                 if curve_number == self.curves - 1:
                     self.universal_plot_widget.setXRange(self.data_buffers_x[curve][(len(self.data_buffers_x[curve]) - self.DATA_POINTS_TO_DISPLAY)], self.data_buffers_x[curve][-1])
         
-        self.data_buffer_threads = []
-        for curve_number, curve in enumerate(self.curve_labels):
-            thread = Thread(target=update_plot_data_thread, args=(curve_number, curve))
-            thread.daemon = True
-            self.data_buffer_threads.append(thread)
-            thread.start()
-        for t in self.data_buffer_threads:
-            t.join()
-
     def calculate_aspect_ratio_value(self, buffer_size, x_axis_left, x_axis_right):
         """Estimate point left point for setXRange function
 
