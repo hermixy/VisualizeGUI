@@ -1,5 +1,6 @@
 from PyQt4 import QtCore, QtGui
 from utility import decode_image_from_base64, placeholder_image
+import multiprocessing as mp
 import configparser
 import os
 import imutils
@@ -964,9 +965,14 @@ class UniversalPlotWidget(QtGui.QWidget):
         self.initialize_data_buffers()
         self.initialize_plots()
         self.initialize_plot_labels()
+        self.initialize_multiprocessing()
 
         self.print_data(self.raw_plot_data)
     
+    def initialize_multiprocessing(self):
+        self.pool = mp.Pool()
+        self.multiprocessing_buffers = mp.Array('i',4)
+
     def set_connection_status(self, value):
         """Displays port connection status label"""
 
@@ -1141,7 +1147,8 @@ class UniversalPlotWidget(QtGui.QWidget):
                     break
 
     def update_plot_data(self): 
-        def update_plot_data_thread(curve_number, curve):
+        def update_plot_data_multiprocessing(curve_number, curve):
+            '''
             # Display entire buffer
             if len(self.data_buffers_x[curve]) <= self.DATA_POINTS_TO_DISPLAY + 1:
                 self.universal_plots[curve].setData(self.data_buffers_x[curve], self.data_buffers_y[curve])
@@ -1156,15 +1163,18 @@ class UniversalPlotWidget(QtGui.QWidget):
                 if curve_number == self.curves - 1:
                     self.universal_plot_widget.setXRange(self.data_buffers_x[curve][(len(self.data_buffers_x[curve]) - self.DATA_POINTS_TO_DISPLAY)], self.data_buffers_x[curve][-1])
         
-        self.data_buffer_threads = []
+            '''
+            print('hello')
+        
+        self.processes = []
         for curve_number, curve in enumerate(self.curve_labels):
-            thread = Thread(target=update_plot_data_thread, args=(curve_number, curve))
-            thread.daemon = True
-            self.data_buffer_threads.append(thread)
-            thread.start()
-        for t in self.data_buffer_threads:
-            t.join()
-
+            proc = mp.Process(target=update_plot_data_multiprocessing, args=(curve_number, curve))
+            proc.daemon = True
+            self.processes.append(proc)
+            proc.start()
+        
+        print(self.processes)
+        exit(1)
     def calculate_aspect_ratio_value(self, buffer_size, x_axis_left, x_axis_right):
         """Estimate point left point for setXRange function
 
