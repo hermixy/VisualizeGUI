@@ -1,7 +1,7 @@
 from PyQt4 import QtCore, QtGui
 import sys
 sys.path.append('../')
-from utility import decode_image_from_base64, placeholder_image
+from utility import ConvertImageBase64, placeholder_image
 from threading import Thread
 import numpy as np
 import cv2
@@ -45,8 +45,8 @@ class VideoWindowWidget(QtGui.QWidget):
 
     def init_placeholder_image(self):
         """Set placeholder image when video is stopped"""
-
-        self.placeholder_image = decode_image_from_base64(placeholder_image)
+        self.convert_image = ConvertImageBase64()
+        self.placeholder_image = self.convert_image.decode_image_from_base64(placeholder_image)
         
         # Maintain aspect ratio
         #self.placeholder_image = imutils.resize(self.placeholder_image, width=self.MIN_WINDOW_WIDTH)
@@ -157,42 +157,41 @@ class VideoStreamWidget(QtGui.QWidget):
     def load_video_file(self):
         self.video_window.load_video_file()
 
-# Create main application window
-app = QtGui.QApplication([])
-app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
-mw = QtGui.QMainWindow()
-mw.setWindowTitle('Video Stream Widget')
-
-# Create and set widget layout
-# Main widget container
-cw = QtGui.QWidget()
-ml = QtGui.QGridLayout()
-cw.setLayout(ml)
-mw.setCentralWidget(cw)
-
-# Create Video Stream Widget
-video_stream_widget = VideoStreamWidget()
-
-mb = mw.menuBar()
-media_menu = mb.addMenu('&Media')
-
-open_network_stream_action = QtGui.QAction('Open Network Stream', mw)
-open_network_stream_action.setShortcut('Ctrl+N')
-open_network_stream_action.setStatusTip('Input video stream link')
-open_network_stream_action.triggered.connect(video_stream_widget.open_network_stream)
-media_menu.addAction(open_network_stream_action)
-
-open_media_file_action = QtGui.QAction('Open Media File', mw)
-open_media_file_action.setShortcut('Ctrl+O')
-open_media_file_action.setStatusTip('Open media file')
-open_media_file_action.triggered.connect(video_stream_widget.load_video_file)
-media_menu.addAction(open_media_file_action)
-
-ml.addLayout(video_stream_widget.get_video_display_layout(),0,0)
-
-mw.show()
-
 if __name__ == '__main__':
+    # Create main application window
+    app = QtGui.QApplication([])
+    app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
+    mw = QtGui.QMainWindow()
+    mw.setWindowTitle('Video Stream Widget')
+
+    # Create and set widget layout
+    # Main widget container
+    cw = QtGui.QWidget()
+    ml = QtGui.QGridLayout()
+    cw.setLayout(ml)
+    mw.setCentralWidget(cw)
+
+    # Create Video Stream Widget
+    video_stream_widget = VideoStreamWidget()
+
+    mb = mw.menuBar()
+    media_menu = mb.addMenu('&Media')
+
+    open_network_stream_action = QtGui.QAction('Open Network Stream', mw)
+    open_network_stream_action.setShortcut('Ctrl+N')
+    open_network_stream_action.setStatusTip('Input video stream link')
+    open_network_stream_action.triggered.connect(video_stream_widget.open_network_stream)
+    media_menu.addAction(open_network_stream_action)
+
+    open_media_file_action = QtGui.QAction('Open Media File', mw)
+    open_media_file_action.setShortcut('Ctrl+O')
+    open_media_file_action.setStatusTip('Open media file')
+    open_media_file_action.triggered.connect(video_stream_widget.load_video_file)
+    media_menu.addAction(open_media_file_action)
+
+    ml.addLayout(video_stream_widget.get_video_display_layout(),0,0)
+
+    mw.show()
     if(sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
         QtGui.QApplication.instance().exec_()
 

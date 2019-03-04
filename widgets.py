@@ -1,5 +1,5 @@
 from PyQt4 import QtCore, QtGui
-from utility import decode_image_from_base64, placeholder_image
+from utility import ConvertImageBase64, placeholder_image
 import configparser
 import os
 import imutils
@@ -501,8 +501,8 @@ class VideoWindowWidget(QtGui.QWidget):
 
     def init_placeholder_image(self):
         """Set placeholder image when video is stopped"""
-
-        self.placeholder_image = decode_image_from_base64(placeholder_image)
+        self.convert_image = ConvertImageBase64()
+        self.placeholder_image = self.convert_image.decode_image_from_base64(placeholder_image)
 
         # Maintain aspect ratio
         #self.placeholder_image = imutils.resize(self.placeholder_image, width=self.MIN_WINDOW_WIDTH)
