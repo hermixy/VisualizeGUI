@@ -1,57 +1,65 @@
 from PyQt4 import QtCore, QtGui
-import sys
-from utility import video_placeholder_image
-from utility import ConvertImageBase64
+from utility import ConvertImageBase64, video_placeholder_image
 from threading import Thread
-import numpy as np
+from load_CSS import load_CSS
+import sys
 import cv2
-import random
 import imutils
 import pyqtgraph as pg
-import time
 
-"""Video Window Widget Example"""
 class VideoWindowWidget(QtGui.QWidget):
-    def __init__(self, width, height, aspect_ratio, parent=None):
+    def __init__(self, width, height, aspect_ratio, default_camera_number,  parent=None):
         super(VideoWindowWidget, self).__init__(parent)
-        
-        self.convert_image = ConvertImageBase64()
 
         self.screen_width = width
         self.screen_height = height
         self.maintain_aspect_ratio = aspect_ratio
-
         self.capture = None
         self.video_file = None
         self.is_video_file_or_stream_loaded = False
         self.pause = True
 
-        self.video_frame = QtGui.QLabel()
+        self.camera_number = default_camera_number
         
+        self.camera_number_table = {'Driveway': 47,
+                                    'Lot UUXO': 40,
+                                    'Back Young': 44,
+                                    'Back King': 42,
+                                    'Parking Lot': 43,
+                                    'Front Young': 46,
+                                    'Front King': 41}
+
+        self.camera_stream_link = 'rtsp://admin:sagnac808@192.168.1.{}:554/cam/realmonitor?channel=1&subtype=0'.format(self.camera_number)
+
+        print(self.camera_stream_link)
+        self.convert_image = ConvertImageBase64()
+        self.video_frame = QtGui.QLabel()
+
         self.layout = QtGui.QGridLayout()
         self.layout.addWidget(self.video_frame,0,0)
         
         self.init_placeholder_image()
-        '''
+        self.auto_load_network_stream()
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.set_frame)
         self.get_frame_thread = Thread(target=self.get_frame, args=())
         self.get_frame_thread.daemon = True
         self.get_frame_thread.start()
         self.start_capture()
-        '''
 
     def init_placeholder_image(self):
         """Set placeholder image when video is stopped"""
 
         self.placeholder_image = self.convert_image.decode_image_from_base64(video_placeholder_image)
         
+        # Maintain aspect ratio
         if self.maintain_aspect_ratio:
-            # Maintain aspect ratio
             self.placeholder_image = imutils.resize(self.placeholder_image, width=self.screen_width)
+        # Force resize image
         else:
             self.placeholder_image = cv2.resize(self.placeholder_image, (self.screen_width, self.screen_height))
-        print(len(self.placeholder_image[1]), len(self.placeholder_image[0]))
+
+        # Convert into QPixmap format
         self.placeholder = QtGui.QImage(self.placeholder_image, self.placeholder_image.shape[1], self.placeholder_image.shape[0], QtGui.QImage.Format_RGB888).rgbSwapped()
         self.placeholder_image = QtGui.QPixmap.fromImage(self.placeholder)
         self.video_frame.setPixmap(self.placeholder_image)
@@ -80,6 +88,13 @@ class VideoWindowWidget(QtGui.QWidget):
                 self.capture = cv2.VideoCapture(str(self.video_file))
         except:
             print("Please select a .h264 file")
+
+    def auto_load_network_stream(self):
+        if self.verify_network_stream(self.camera_stream_link):
+            self.is_video_file_or_stream_loaded = True
+            self.pause = False
+            self.video_file = self.camera_stream_link
+            self.capture = cv2.VideoCapture(self.camera_stream_link)
 
     def open_network_stream(self):
         """Opens popup dialog to enter IP network stream"""
@@ -128,13 +143,19 @@ class VideoWindowWidget(QtGui.QWidget):
     def get_video_window_layout(self):
         return self.layout
     
+def exit_application():
+    """Exit program event handler"""
+    exit(1)
+
 if __name__ == '__main__':
 
     # Create main application window
     app = QtGui.QApplication([])
+    app.setStyleSheet(load_CSS(1))
     app.setStyle(QtGui.QStyleFactory.create("Cleanlooks"))
     mw = QtGui.QMainWindow()
     mw.setWindowTitle('Camera GUI')
+    mw.setWindowFlags(QtCore.Qt.FramelessWindowHint)
 
     # Create and set widget layout
     # Main widget container
@@ -149,24 +170,33 @@ if __name__ == '__main__':
     screen_height = QtGui.QApplication.desktop().screenGeometry().height()
     
     # Create Video Window Widget
-    parking_lot  = VideoWindowWidget(screen_width, screen_height/2, True)
-    bottom_left = VideoWindowWidget(screen_width/3, screen_height/2, False)
-    bottom_middle = VideoWindowWidget(screen_width/3, screen_height/2, False)
-    bottom_right = VideoWindowWidget(screen_width/3, screen_height/2, False)
+    parking_lot  = VideoWindowWidget(screen_width, screen_height/2, False, 43)
+    bottom_left = VideoWindowWidget(screen_width/3, screen_height/2, False, 47)
+    bottom_middle = VideoWindowWidget(screen_width/3, screen_height/2, False, 44)
+    bottom_right = VideoWindowWidget(screen_width/3, screen_height/2, False, 41)
 
     mb = mw.menuBar()
+    file_menu = mb.addMenu('&File')
     media_menu = mb.addMenu('&Media')
 
+    # File Menu
+    exit_action = QtGui.QAction('Exit', mw)
+    exit_action.setShortcut('Ctrl+Q')
+    exit_action.setStatusTip('Exit application')
+    exit_action.triggered.connect(exit_application)
+    file_menu.addAction(exit_action)
+
+    # Media Menu
     open_network_stream_action = QtGui.QAction('Open Network Stream', mw)
     open_network_stream_action.setShortcut('Ctrl+N')
     open_network_stream_action.setStatusTip('Input video stream link')
-    open_network_stream_action.triggered.connect(parking_lot .open_network_stream)
+    open_network_stream_action.triggered.connect(parking_lot.open_network_stream)
     media_menu.addAction(open_network_stream_action)
 
     open_media_file_action = QtGui.QAction('Open Media File', mw)
     open_media_file_action.setShortcut('Ctrl+O')
     open_media_file_action.setStatusTip('Open media file')
-    open_media_file_action.triggered.connect(parking_lot .load_video_file)
+    open_media_file_action.triggered.connect(parking_lot.load_video_file)
     media_menu.addAction(open_media_file_action)
 
     ml.addLayout(parking_lot.get_video_window_layout(),0,0,1,3)
