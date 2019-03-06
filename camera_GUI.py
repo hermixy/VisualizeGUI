@@ -105,15 +105,22 @@ class VideoWindowWidget(QtGui.QWidget):
                 # Attempt to reconnect
                 print('attempting to reconnect', self.camera_number)
                 self.load_network_stream()
-                time.sleep(2)
-            time.sleep(.001)
+                self.spin(2)
+            self.spin(.001)
+
+    def spin(self, seconds):
+        """Pause for set amount of seconds, replaces time.sleep so program doesnt stall"""
+
+        time_end = time.time() + seconds
+        while time.time() < time_end:
+            QtGui.QApplication.processEvents()
 
     def set_frame(self):
         """Sets pixmap image to video frame"""
 
         if not self.online:
             self.video_frame.setPixmap(self.placeholder_image)
-            time.sleep(1)
+            self.spin(1)
             return
 
         if self.deque and self.online:
@@ -128,7 +135,6 @@ class VideoWindowWidget(QtGui.QWidget):
                 self.frame = cv2.resize(frame, (self.screen_width, self.screen_height))
             # Add timestamp to parking lot camera
             if self.camera_number == 43:
-                # cv2.rectangle(self.frame, (self.screen_width-190,0), (self.screen_width,50), color=(255,51,112), thickness=-1)
                 cv2.rectangle(self.frame, (self.screen_width-190,0), (self.screen_width,50), color=(0,0,0), thickness=-1)
                 cv2.putText(self.frame, datetime.now().strftime('%H:%M:%S'), (self.screen_width-185,37), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255,255,255), lineType=cv2.LINE_AA)
             # Convert to pixmap and set to video frame
@@ -164,20 +170,16 @@ if __name__ == '__main__':
     
     # Create Video Window Widget
     parking_lot  = VideoWindowWidget(screen_width, screen_height/2, False, 43)
-    '''
     bottom_left = VideoWindowWidget(screen_width/3, screen_height/2, False, 47)
     bottom_middle = VideoWindowWidget(screen_width/3, screen_height/2, False, 44)
     bottom_right = VideoWindowWidget(screen_width/3, screen_height/2, False, 41)
-    '''
 
     QtGui.QShortcut(QtGui.QKeySequence('Ctrl+Q'), mw, exit_application)
 
     ml.addLayout(parking_lot.get_video_window_layout(),0,0,1,3)
-    '''
     ml.addLayout(bottom_left.get_video_window_layout(),1,0,1,1)
     ml.addLayout(bottom_middle.get_video_window_layout(),1,1,1,1)
     ml.addLayout(bottom_right.get_video_window_layout(),1,2,1,1)
-    '''
 
     mw.show()
 
