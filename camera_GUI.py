@@ -15,6 +15,7 @@ class VideoWindowWidget(QtGui.QWidget):
 
         # Initialize deque used to store frames read from the stream
         self.deque = deque(maxlen=deque_size)
+        self.online = False
 
         self.screen_width = width
         self.screen_height = height
@@ -70,6 +71,7 @@ class VideoWindowWidget(QtGui.QWidget):
     def load_network_stream(self):
         if self.verify_network_stream(self.camera_stream_link):
             self.capture = cv2.VideoCapture(self.camera_stream_link)
+            self.online = True
 
     def change_network_stream(self):
         """Opens popup dialog to enter IP network stream"""
@@ -92,17 +94,29 @@ class VideoWindowWidget(QtGui.QWidget):
         """Reads frame, resizes, and converts image to pixmap"""
 
         while True:
-            if self.capture.isOpened():
+            if self.capture.isOpened() and self.online:
                 # Read next frame from stream and insert into deque
                 status, frame = self.capture.read()
                 if status:
                     self.deque.append(frame)
+                else:
+                    self.online = False
+            else:
+                # Attempt to reconnect
+                print('attempting to reconnect', self.camera_number)
+                self.load_network_stream()
+                time.sleep(2)
             time.sleep(.001)
 
     def set_frame(self):
         """Sets pixmap image to video frame"""
 
-        if self.deque:
+        if not self.online:
+            self.video_frame.setPixmap(self.placeholder_image)
+            time.sleep(1)
+            return
+
+        if self.deque and self.online:
             # Grab latest frame
             frame = self.deque[-1]
 
@@ -150,16 +164,20 @@ if __name__ == '__main__':
     
     # Create Video Window Widget
     parking_lot  = VideoWindowWidget(screen_width, screen_height/2, False, 43)
+    '''
     bottom_left = VideoWindowWidget(screen_width/3, screen_height/2, False, 47)
     bottom_middle = VideoWindowWidget(screen_width/3, screen_height/2, False, 44)
     bottom_right = VideoWindowWidget(screen_width/3, screen_height/2, False, 41)
+    '''
 
     QtGui.QShortcut(QtGui.QKeySequence('Ctrl+Q'), mw, exit_application)
 
     ml.addLayout(parking_lot.get_video_window_layout(),0,0,1,3)
+    '''
     ml.addLayout(bottom_left.get_video_window_layout(),1,0,1,1)
     ml.addLayout(bottom_middle.get_video_window_layout(),1,1,1,1)
     ml.addLayout(bottom_right.get_video_window_layout(),1,2,1,1)
+    '''
 
     mw.show()
 
