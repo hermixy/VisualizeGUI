@@ -3,6 +3,7 @@ from utility import ConvertImageBase64, video_placeholder_image
 from threading import Thread
 from load_CSS import load_CSS
 from collections import deque
+from datetime import datetime
 import time
 import sys
 import cv2
@@ -111,7 +112,11 @@ class VideoWindowWidget(QtGui.QWidget):
             # Force resize
             else:
                 self.frame = cv2.resize(frame, (self.screen_width, self.screen_height))
-
+            # Add timestamp to parking lot camera
+            if self.camera_number == 43:
+                # cv2.rectangle(self.frame, (self.screen_width-190,0), (self.screen_width,50), color=(255,51,112), thickness=-1)
+                cv2.rectangle(self.frame, (self.screen_width-190,0), (self.screen_width,50), color=(0,0,0), thickness=-1)
+                cv2.putText(self.frame, datetime.now().strftime('%H:%M:%S'), (self.screen_width-185,37), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255,255,255), lineType=cv2.LINE_AA)
             # Convert to pixmap and set to video frame
             self.img = QtGui.QImage(self.frame, self.frame.shape[1], self.frame.shape[0], QtGui.QImage.Format_RGB888).rgbSwapped()
             self.pix = QtGui.QPixmap.fromImage(self.img)
