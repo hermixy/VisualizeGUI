@@ -1,18 +1,20 @@
 from PyQt4 import QtCore, QtGui
 from utility import ConvertImageBase64, video_placeholder_image
-from threading import Thread, RLock
+from threading import Thread
 from load_CSS import load_CSS
+from collections import deque
+import time
 import sys
 import cv2
 import imutils
-import pyqtgraph as pg
 
 class VideoWindowWidget(QtGui.QWidget):
-    def __init__(self, width, height, aspect_ratio, default_camera_number,  parent=None):
+    def __init__(self, width, height, aspect_ratio, default_camera_number, parent=None, deque_size=1):
         super(VideoWindowWidget, self).__init__(parent)
 
-        # Lock to prevent treads from accessing shared resource
-        self.lock = RLock()
+        # Initialize deque used to store frames read from the stream
+        self.deque = deque(maxlen=deque_size)
+
         self.screen_width = width
         self.screen_height = height
         self.maintain_aspect_ratio = aspect_ratio
@@ -44,7 +46,7 @@ class VideoWindowWidget(QtGui.QWidget):
         self.get_frame_thread.start()
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.set_frame)
-        self.timer.start(0)
+        self.timer.start(1)
 
     def init_placeholder_image(self):
         """Set placeholder image when video is stopped"""
@@ -90,25 +92,30 @@ class VideoWindowWidget(QtGui.QWidget):
 
         while True:
             if self.capture.isOpened():
+                # Read next frame from stream and insert into deque
                 status, frame = self.capture.read()
-                if frame is not None:
-                    self.lock.acquire()
-                    if self.maintain_aspect_ratio:
-                        self.frame = imutils.resize(frame, width=self.screen_width)
-                    else:
-                        self.frame = cv2.resize(frame, (self.screen_width, self.screen_height))
-                    self.img = QtGui.QImage(self.frame, self.frame.shape[1], self.frame.shape[0], QtGui.QImage.Format_RGB888).rgbSwapped()
-                    self.pix = QtGui.QPixmap.fromImage(self.img)
-                self.lock.release()
+                if status:
+                    self.deque.append(frame)
+            time.sleep(.001)
 
     def set_frame(self):
         """Sets pixmap image to video frame"""
 
-        try:
+        if self.deque:
+            # Grab latest frame
+            frame = self.deque[-1]
+
+            # Keep frame aspect ratio
+            if self.maintain_aspect_ratio:
+                self.frame = imutils.resize(frame, width=self.screen_width)
+            # Force resize
+            else:
+                self.frame = cv2.resize(frame, (self.screen_width, self.screen_height))
+
+            # Convert to pixmap and set to video frame
+            self.img = QtGui.QImage(self.frame, self.frame.shape[1], self.frame.shape[0], QtGui.QImage.Format_RGB888).rgbSwapped()
+            self.pix = QtGui.QPixmap.fromImage(self.img)
             self.video_frame.setPixmap(self.pix)
-        # No frame yet so can't set image
-        except AttributeError:
-            pass
 
     def get_video_window_layout(self):
         return self.layout
